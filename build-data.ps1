@@ -100,6 +100,34 @@ foreach ($l in [System.IO.File]::ReadAllLines($EquipCsv, [System.Text.Encoding]:
     $cap[$f[1]][$k] += [int]$f[18]
 }
 
+# Prix CNSA : chaque fichier ne contient que les EHPAD ayant déclaré leurs prix sur la période.
+# On prend les fichiers annuels + les mensuels postérieurs, et on garde la déclaration la plus récente.
+$prix = @{}
+$cnsa = (Invoke-RestMethod 'https://www.data.gouv.fr/api/1/datasets/5fc113baffccb502d3fe204e/').resources |
+    Where-Object { $_.title -match '_(\d{4})(\d{2})?_brute\.csv$' } |
+    ForEach-Object { [pscustomobject]@{ url = $_.url; year = [int]$Matches[1]; month = $Matches[2] } }
+$lastYear = ($cnsa | Where-Object { -not $_.month } | Measure-Object year -Maximum).Maximum
+$cnsaFiles = $cnsa | Where-Object { (-not $_.month) -or ($_.year -gt $lastYear) }
+Write-Host "Téléchargement de $(@($cnsaFiles).Count) fichiers de prix CNSA..."
+$frNum = [System.Globalization.CultureInfo]::GetCultureInfo('fr-FR')
+function Num([string]$s) { if ($s) { [Math]::Round([double]::Parse($s, $frNum), 2) } else { $null } }
+foreach ($file in $cnsaFiles) {
+    $tmp = Join-Path ([IO.Path]::GetTempPath()) 'cnsa-prix.csv'
+    $ProgressPreference = 'SilentlyContinue'
+    Invoke-WebRequest $file.url -OutFile $tmp
+    foreach ($r in (Import-Csv $tmp -Delimiter ';' -Encoding UTF8)) {
+        $id = $r.finessEt
+        if (-not $ehpad.ContainsKey($id)) { continue }
+        if ($prix[$id] -and $prix[$id].maj -ge $r.DATE_MAJ) { continue }
+        $prix[$id] = @{
+            maj = $r.DATE_MAJ
+            pc = Num $r.prixHebPermCs; pd = Num $r.prixHebPermCd; pa = Num $r.prixHebPermCsa
+            tc = Num $r.prixHebTempCs
+            g = @((Num $r.TARIF_GIR_12), (Num $r.TARIF_GIR_34), (Num $r.TARIF_GIR_56))
+        }
+    }
+}
+
 function Clean([string]$s) { ($s -replace '\s+', ' ').Trim() }
 $ci = [System.Globalization.CultureInfo]::InvariantCulture
 $out = New-Object System.Collections.Generic.List[string]
@@ -129,9 +157,17 @@ foreach ($id in $ehpad.Keys) {
         la = [Math]::Round($p[0], 5)
         lo = [Math]::Round($p[1], 5)
     }
+    # Prix journaliers en euros : pc chambre seule, pd chambre double, pa chambre seule tarif aide sociale,
+    # tc chambre seule temporaire, g tarifs dépendance GIR 1-2 / 3-4 / 5-6, pm date de déclaration
+    $px = $prix[$id]
+    if ($px) {
+        foreach ($k in 'pc', 'pd', 'pa', 'tc') { if ($px[$k] -ne $null) { $rec[$k] = $px[$k] } }
+        if ($px.g[2] -ne $null) { $rec.g = $px.g }
+        $rec.pm = $px.maj.Substring(0, 10)
+    }
     $out.Add(($rec | ConvertTo-Json -Compress))
 }
 
 $js = "window.EHPAD_DATE='$dataDate';`nwindow.EHPAD=[`n" + ($out -join ",`n") + "`n];`n"
 [System.IO.File]::WriteAllText((Join-Path $here 'ehpad.js'), $js, (New-Object System.Text.UTF8Encoding $false))
-Write-Host "$($out.Count) EHPAD exportés ($missing sans coordonnées) - données du $dataDate"
+Write-Host "$($out.Count) EHPAD exportés ($missing sans coordonnées, $($prix.Count) avec prix) - données du $dataDate"
