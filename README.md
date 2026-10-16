@@ -6,6 +6,8 @@ Carte interactive de tous les EHPAD (établissements d'hébergement pour personn
 - Filtre par département et par habilitation à l'aide sociale
 - Fiche de chaque établissement : adresse, téléphone, itinéraire, numéro FINESS
 
+Le code APE/NAF des EHPAD est 87.10A : « Hébergement médicalisé pour personnes âgées ». D’après l’INSEE, cette rubrique couvre notamment les établissements d’hébergement pour personnes âgées dépendantes (EHPAD) et les maisons de retraite.
+
 ## Fichiers
 
 | Fichier | Rôle |
