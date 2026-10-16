@@ -56,6 +56,12 @@
          background: #e3f0ec; color: #1d6b5c; margin-top: 6px; }
   .tag.no { background: #f3ece2; color: #8a5a1c; }
   .popup-links a { margin-right: 10px; }
+  .cap { display: flex; gap: 6px; margin-top: 8px; }
+  .cap div { flex: 1; text-align: center; background: #f4f3ef; border-radius: 6px; padding: 5px 4px; }
+  .cap b { display: block; font-size: 17px; color: #1d6b5c; line-height: 1.2; }
+  .cap span { font-size: 11px; color: #666; }
+  .cap-note { font-size: 12px; color: #777; margin-top: 4px; }
+  #list .city .places { float: right; color: var(--accent); font-weight: 600; }
   #toggle { display: none; }
 
   @media (max-width: 760px) {
@@ -80,6 +86,8 @@
     <input id="q" type="search" placeholder="Nom, ville ou code postal…" autocomplete="off" aria-label="Rechercher">
     <select id="dep" aria-label="Département"><option value="">Tous les départements</option></select>
     <label class="check"><input id="hab" type="checkbox"> Habilités à l'aide sociale uniquement</label>
+    <label class="check"><input id="tmp" type="checkbox"> Avec hébergement temporaire</label>
+    <label class="check"><input id="jour" type="checkbox"> Avec accueil de jour</label>
     <div class="count"><span><b id="n">0</b> EHPAD affichés</span><button id="toggle" type="button">Voir la liste</button></div>
   </div>
   <ul id="list"></ul>
@@ -123,6 +131,12 @@ function popup(e) {
     ${esc(e.a)}<br>${esc(e.v)}<br>
     ${e.t ? `☎ <a href="tel:${e.t}">${fmtTel(e.t)}</a><br>` : ""}
     <span class="tag ${e.h ? "" : "no"}">${e.h ? "Habilité à l'aide sociale" : "Non habilité à l'aide sociale"}</span>
+    ${e.p != null ? `<div class="cap">
+      <div><b>${e.p}</b><span>places permanentes</span></div>
+      <div><b>${e.tp}</b><span>hébergement temporaire</span></div>
+      <div><b>${e.aj}</b><span>accueil de jour</span></div>
+    </div>
+    <div class="cap-note">Capacité totale de l'établissement. Pour les places libres, contactez l'EHPAD ou faites une demande sur <a href="https://trajectoire.sante-ra.fr/" target="_blank" rel="noopener">ViaTrajectoire</a>.</div>` : ""}
     <div class="popup-links" style="margin-top:8px">
       <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Itinéraire</a>
       <a href="https://www.pour-les-personnes-agees.gouv.fr/annuaire-ehpad-et-maisons-de-retraite" target="_blank" rel="noopener">Tarifs</a>
@@ -138,8 +152,10 @@ for (const e of EHPAD) {
 let shown = [];
 function apply(fit) {
   const q = norm($("q").value.trim()), dep = $("dep").value, hab = $("hab").checked;
+  const tmp = $("tmp").checked, jour = $("jour").checked;
   const words = q.split(/\s+/).filter(Boolean);
-  shown = EHPAD.filter(e => (!dep || e.d === dep) && (!hab || e.h) && words.every(w => e.key.includes(w)));
+  shown = EHPAD.filter(e => (!dep || e.d === dep) && (!hab || e.h) && (!tmp || e.tp > 0) && (!jour || e.aj > 0)
+    && words.every(w => e.key.includes(w)));
   cluster.clearLayers();
   cluster.addLayers(shown.map(e => e.marker));
   $("n").textContent = shown.length.toLocaleString("fr-FR");
@@ -154,7 +170,7 @@ const LIST_MAX = 200;
 function renderList() {
   const items = [...shown].sort((a, b) => a.v.localeCompare(b.v, "fr")).slice(0, LIST_MAX);
   $("list").innerHTML = items.map(e =>
-    `<li tabindex="0" data-id="${e.id}"><div class="name">${esc(e.n)}</div><div class="city">${esc(e.v)}</div></li>`).join("")
+    `<li tabindex="0" data-id="${e.id}"><div class="name">${esc(e.n)}</div><div class="city">${e.p ? `<span class="places">${e.p} places</span>` : ""}${esc(e.v)}</div></li>`).join("")
     + (shown.length > LIST_MAX ? `<li class="more">… et ${(shown.length - LIST_MAX).toLocaleString("fr-FR")} autres. Affinez la recherche.</li>` : "")
     + (!shown.length ? `<li class="more">Aucun EHPAD ne correspond.</li>` : "");
 }
@@ -171,7 +187,7 @@ $("list").addEventListener("keydown", ev => { if (ev.key === "Enter") { const li
 let t;
 $("q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => apply(true), 250); });
 $("dep").addEventListener("change", () => apply(true));
-$("hab").addEventListener("change", () => apply(false));
+for (const id of ["hab", "tmp", "jour"]) $(id).addEventListener("change", () => apply(false));
 $("toggle").addEventListener("click", () => {
   const c = $("panel").classList.toggle("collapsed");
   $("toggle").textContent = c ? "Voir la liste" : "Masquer la liste";

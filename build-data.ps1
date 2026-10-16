@@ -1,18 +1,24 @@
 # Génère ehpad.js (liste des EHPAD géolocalisés) à partir de l'extraction FINESS de data.gouv.fr
-# Usage : powershell -ExecutionPolicy Bypass -File build-data.ps1 [chemin_du_csv]
-param([string]$Csv = "")
+# Usage : powershell -ExecutionPolicy Bypass -File build-data.ps1 [csv_etablissements] [csv_equipements]
+param([string]$Csv = "", [string]$EquipCsv = "")
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-if (-not $Csv) {
-    $Csv = Join-Path $env:TEMP 'finess-geo.csv'
-    $meta = Invoke-RestMethod 'https://www.data.gouv.fr/api/1/datasets/53699569a3a729239d2046eb/'
-    $res = $meta.resources | Where-Object { $_.url -like '*cs1100507*' } | Select-Object -First 1
+function Get-FinessFile([string]$datasetId, [string]$pattern) {
+    $path = Join-Path ([IO.Path]::GetTempPath()) "$pattern.csv"
+    $meta = Invoke-RestMethod "https://www.data.gouv.fr/api/1/datasets/$datasetId/"
+    $res = $meta.resources | Where-Object { $_.url -like "*$pattern*" } | Select-Object -First 1
     Write-Host "Téléchargement de $($res.title)..."
     $ProgressPreference = 'SilentlyContinue'
-    Invoke-WebRequest $res.url -OutFile $Csv
+    Invoke-WebRequest $res.url -OutFile $path
+    $path
 }
+
+# Établissements géolocalisés
+if (-not $Csv) { $Csv = Get-FinessFile '53699569a3a729239d2046eb' 'cs1100507' }
+# Équipements sociaux et médico-sociaux (capacités)
+if (-not $EquipCsv) { $EquipCsv = Get-FinessFile '5369956ca3a729239d204701' 'cs1100505' }
 
 Add-Type -TypeDefinition @'
 using System;
@@ -72,6 +78,28 @@ foreach ($l in $lines) {
     }
 }
 
+# Capacités installées par EHPAD (colonne 18 = capacité installée totale)
+#   p  : hébergement permanent  (discipline 924, activité 11 internat)
+#   tp : hébergement temporaire (discipline 657, activité 11)
+#   aj : accueil de jour        (disciplines 924/657, activité 21)
+# Le fichier croise autorisations et installations : une même installation peut apparaître
+# sur plusieurs lignes, on ne la compte qu'une fois (clé = équipement + colonnes d'installation).
+$cap = @{}
+$seen = New-Object 'System.Collections.Generic.HashSet[string]'
+foreach ($l in [System.IO.File]::ReadAllLines($EquipCsv, [System.Text.Encoding]::UTF8)) {
+    if (-not $l.StartsWith('equipementsocial;')) { continue }
+    $f = $l -split ';'
+    if (-not $ehpad.ContainsKey($f[1]) -or -not $f[18]) { continue }
+    if (-not $seen.Add((@($f[1], $f[2], $f[4], $f[6]) + $f[18..26]) -join '|')) { continue }
+    $k = if ($f[4] -eq '11' -and $f[2] -eq '924') { 'p' }
+         elseif ($f[4] -eq '11' -and $f[2] -eq '657') { 'tp' }
+         elseif ($f[4] -eq '21' -and ($f[2] -eq '924' -or $f[2] -eq '657')) { 'aj' }
+         else { $null }
+    if (-not $k) { continue }
+    if (-not $cap[$f[1]]) { $cap[$f[1]] = @{ p = 0; tp = 0; aj = 0 } }
+    $cap[$f[1]][$k] += [int]$f[18]
+}
+
 function Clean([string]$s) { ($s -replace '\s+', ' ').Trim() }
 $ci = [System.Globalization.CultureInfo]::InvariantCulture
 $out = New-Object System.Collections.Generic.List[string]
@@ -95,6 +123,9 @@ foreach ($id in $ehpad.Keys) {
         d  = $f[13]
         t  = (Clean $f[16])
         h  = $(if ($f[25] -match 'non h') { 0 } else { 1 })  # habilité à l'aide sociale
+        p  = $(if ($cap[$id]) { $cap[$id].p } else { $null })
+        tp = $(if ($cap[$id]) { $cap[$id].tp } else { $null })
+        aj = $(if ($cap[$id]) { $cap[$id].aj } else { $null })
         la = [Math]::Round($p[0], 5)
         lo = [Math]::Round($p[1], 5)
     }

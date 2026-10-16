@@ -3,10 +3,10 @@
 Carte interactive de tous les EHPAD (établissements d'hébergement pour personnes âgées dépendantes) de France métropolitaine et d'outre-mer.
 
 - Recherche par nom, ville, code postal ou adresse
-- Filtre par département et par habilitation à l'aide sociale
-- Fiche de chaque établissement : adresse, téléphone, itinéraire, numéro FINESS
+- Filtre par département, habilitation à l'aide sociale, hébergement temporaire et accueil de jour
+- Fiche de chaque établissement : adresse, téléphone, capacité (places permanentes, hébergement temporaire, accueil de jour), itinéraire, numéro FINESS
 
-Le code APE/NAF des EHPAD est 87.10A : « Hébergement médicalisé pour personnes âgées ». D’après l’INSEE, cette rubrique couvre notamment les établissements d’hébergement pour personnes âgées dépendantes (EHPAD) et les maisons de retraite.
+> La capacité affichée est le nombre total de places installées, pas le nombre de places libres : aucune donnée publique ne donne les disponibilités en temps réel.
 
 ## Fichiers
 
@@ -26,5 +26,8 @@ powershell -ExecutionPolicy Bypass -File build-data.ps1
 
 ## Source des données
 
-[FINESS – Extraction du fichier des établissements](https://www.data.gouv.fr/fr/datasets/finess-extraction-du-fichier-des-etablissements/), ministère de la Santé, Licence Ouverte / Etalab.
+- [FINESS – Extraction du fichier des établissements](https://www.data.gouv.fr/fr/datasets/finess-extraction-du-fichier-des-etablissements/) (adresses et coordonnées)
+- [FINESS – Extraction des équipements sociaux et médico-sociaux](https://www.data.gouv.fr/fr/datasets/finess-extraction-des-equipements-sociaux-et-medico-sociaux/) (capacités)
+
+Ministère de la Santé, Licence Ouverte / Etalab.
 Fonds de carte © contributeurs [OpenStreetMap](https://www.openstreetmap.org/copyright).
