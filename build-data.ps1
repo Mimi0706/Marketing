@@ -1,12 +1,13 @@
 # Génère ehpad.js (liste des EHPAD géolocalisés) à partir de l'extraction FINESS de data.gouv.fr
-# Usage : powershell -ExecutionPolicy Bypass -File build-data.ps1 [csv_etablissements] [csv_equipements]
-param([string]$Csv = "", [string]$EquipCsv = "")
+# Usage : powershell -ExecutionPolicy Bypass -File build-data.ps1
+# (les fichiers sources sont téléchargés automatiquement ; on peut aussi passer des fichiers déjà téléchargés)
+param([string]$Csv = "", [string]$EquipCsv = "", [string]$EjCsv = "", [string]$HasXlsx = "")
 
 $ErrorActionPreference = 'Stop'
 $here = Split-Path -Parent $MyInvocation.MyCommand.Path
 
-function Get-FinessFile([string]$datasetId, [string]$pattern) {
-    $path = Join-Path ([IO.Path]::GetTempPath()) "$pattern.csv"
+function Get-DataFile([string]$datasetId, [string]$pattern, [string]$ext = 'csv') {
+    $path = Join-Path ([IO.Path]::GetTempPath()) "$pattern.$ext"
     $meta = Invoke-RestMethod "https://www.data.gouv.fr/api/1/datasets/$datasetId/"
     $res = $meta.resources | Where-Object { $_.url -like "*$pattern*" } | Select-Object -First 1
     Write-Host "Téléchargement de $($res.title)..."
@@ -16,9 +17,44 @@ function Get-FinessFile([string]$datasetId, [string]$pattern) {
 }
 
 # Établissements géolocalisés
-if (-not $Csv) { $Csv = Get-FinessFile '53699569a3a729239d2046eb' 'cs1100507' }
+if (-not $Csv) { $Csv = Get-DataFile '53699569a3a729239d2046eb' 'cs1100507' }
 # Équipements sociaux et médico-sociaux (capacités)
-if (-not $EquipCsv) { $EquipCsv = Get-FinessFile '5369956ca3a729239d204701' 'cs1100505' }
+if (-not $EquipCsv) { $EquipCsv = Get-DataFile '5369956ca3a729239d204701' 'cs1100505' }
+# Entités juridiques (gestionnaires et statut juridique)
+if (-not $EjCsv) { $EjCsv = Get-DataFile '5369956ba3a729239d2046fc' 'cs1100501' }
+# Évaluations qualité HAS des ESSMS
+if (-not $HasXlsx) { $HasXlsx = Get-DataFile '693822a461b1b759069eba97' 'open_data_par_essms.xlsx' 'xlsx' }
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+# Lit la 1re feuille d'un .xlsx : renvoie une hashtable { lettre de colonne -> valeur } par ligne
+function Read-Xlsx([string]$path) {
+    $z = [IO.Compression.ZipFile]::OpenRead($path)
+    try {
+        $ss = New-Object System.Collections.Generic.List[string]
+        $e = $z.GetEntry('xl/sharedStrings.xml')
+        if ($e) {
+            $r = [Xml.XmlReader]::Create($e.Open())
+            while (-not $r.EOF) {
+                if ($r.NodeType -eq 'Element' -and $r.LocalName -eq 'si') { $ss.Add(([xml]$r.ReadOuterXml()).DocumentElement.InnerText) }
+                else { [void]$r.Read() }
+            }
+            $r.Close()
+        }
+        $r = [Xml.XmlReader]::Create($z.GetEntry('xl/worksheets/sheet1.xml').Open())
+        while (-not $r.EOF) {
+            if ($r.NodeType -eq 'Element' -and $r.LocalName -eq 'row') {
+                $row = @{}
+                foreach ($c in ([xml]$r.ReadOuterXml()).DocumentElement.ChildNodes) {
+                    if ($c.LocalName -ne 'c') { continue }
+                    $col = $c.GetAttribute('r') -replace '\d', ''
+                    $row[$col] = if ($c.GetAttribute('t') -eq 's') { $ss[[int]$c.InnerText] } else { $c.InnerText }
+                }
+                $row
+            } else { [void]$r.Read() }
+        }
+        $r.Close()
+    } finally { $z.Dispose() }
+}
 
 Add-Type -TypeDefinition @'
 using System;
@@ -128,6 +164,62 @@ foreach ($file in $cnsaFiles) {
     }
 }
 
+# Gestionnaires : nom et catégorie de statut juridique (codes FINESS : < 40 public,
+# 40-69 privé non lucratif, >= 70 privé commercial)
+$ej = @{}
+foreach ($l in [System.IO.File]::ReadAllLines($EjCsv, [System.Text.Encoding]::UTF8)) {
+    if (-not $l.StartsWith('structureej;')) { continue }
+    $f = $l -split ';'
+    $code = 0; [void][int]::TryParse($f[16], [ref]$code)
+    $ej[$f[1]] = @{
+        nom = $(if ($f[3]) { $f[3] } else { $f[2] })
+        st  = $(if ($code -lt 40) { 'pub' } elseif ($code -lt 70) { 'pnl' } else { 'com' })
+    }
+}
+
+# Évaluation qualité HAS : niveau global A-D, critères impératifs atteints et cotations (sur 4) des
+# 9 thématiques transversales. On garde l'évaluation la plus récente de chaque EHPAD.
+Write-Host "Lecture des évaluations HAS (quelques minutes)..."
+$has = @{}
+$hcol = $null
+foreach ($row in (Read-Xlsx $HasXlsx)) {
+    if (-not $hcol) { $hcol = @{}; foreach ($k in $row.Keys) { $hcol[$row[$k]] = $k }; continue }
+    $id = $row[$hcol['finess_geo']]
+    if (-not $ehpad.ContainsKey($id)) { continue }
+    $niv = $row[$hcol['indice_qualite']]
+    if (-not $niv) { continue }
+    $fin = [int]$row[$hcol['eval_date_fin']]  # date au format numérique Excel
+    if ($has[$id] -and $has[$id].fin -ge $fin) { continue }
+    $th = foreach ($i in 1..9) {
+        $v = $row[$hcol["cotation_globale_thematique_0.$i"]]
+        if ($v) { [Math]::Round([double]::Parse($v, [Globalization.CultureInfo]::InvariantCulture), 2) } else { $null }
+    }
+    $atteints = $row[$hcol['nb_ci_atteints']]
+    $has[$id] = @{
+        fin = $fin; niv = $niv
+        ci = $(if ($atteints) { "$atteints/$($row[$hcol['nb_ci']])" } else { $null })
+        th = @($th)
+    }
+}
+
+# GIR moyen pondéré (GMP) : publié uniquement en moyenne par département (CNSA).
+# On garde l'année la plus récente disponible pour chaque département, avec les codes FINESS.
+Write-Host "Téléchargement des GMP départementaux (CNSA)..."
+$gmpDep = @{}
+$depFiness = @{ '971' = '9A'; '972' = '9B'; '973' = '9C'; '974' = '9D'; '976' = '9F' }
+$gmpRows = Invoke-RestMethod 'https://data-autonomie.cnsa.fr/api/explore/v2.1/catalog/datasets/gir_moyen_pondere_moyens_par_departement/exports/json'
+foreach ($r in ($gmpRows | Sort-Object { [int]$_.annee }, { $_.ndeg_dep -eq '69' })) {
+    if ($null -eq $r.gmp_moyen_departemental) { continue }
+    $codes = switch ($r.ndeg_dep) { '2A/2B' { '2A', '2B' } '69M' { '69' } default { $r.ndeg_dep } }
+    foreach ($c in $codes) {
+        if ($depFiness[$c]) { $c = $depFiness[$c] }
+        $gmpDep[$c] = @([Math]::Round([double]$r.gmp_moyen_departemental), [int]$r.annee)
+    }
+}
+$lastGmp = ($gmpRows | Measure-Object { [int]$_.annee } -Maximum).Maximum
+$gmpVals = @($gmpRows | Where-Object { [int]$_.annee -eq $lastGmp -and $_.gmp_moyen_departemental } | ForEach-Object { [double]$_.gmp_moyen_departemental })
+$gmpMoyen = [Math]::Round(($gmpVals | Measure-Object -Average).Average)
+
 function Clean([string]$s) { ($s -replace '\s+', ' ').Trim() }
 $ci = [System.Globalization.CultureInfo]::InvariantCulture
 $out = New-Object System.Collections.Generic.List[string]
@@ -165,9 +257,23 @@ foreach ($id in $ehpad.Keys) {
         if ($px.g[2] -ne $null) { $rec.g = $px.g }
         $rec.pm = $px.maj.Substring(0, 10)
     }
+    # Gestionnaire : gn nom, st statut (pub / pnl / com)
+    $g = $ej[$f[2]]
+    if ($g) { $rec.gn = (Clean $g.nom); $rec.st = $g.st }
+    # Qualité HAS : q niveau A-D, qd date de fin d'évaluation, qc critères impératifs atteints, qt thématiques
+    $q = $has[$id]
+    if ($q) {
+        $rec.q = $q.niv
+        $rec.qd = [DateTime]::FromOADate($q.fin).ToString('yyyy-MM-dd')
+        if ($q.ci) { $rec.qc = $q.ci }
+        $rec.qt = $q.th
+    }
     $out.Add(($rec | ConvertTo-Json -Compress))
 }
 
-$js = "window.EHPAD_DATE='$dataDate';`nwindow.EHPAD=[`n" + ($out -join ",`n") + "`n];`n"
+$gmpJs = ($gmpDep.GetEnumerator() | Sort-Object Name | ForEach-Object { "`"$($_.Name)`":[$($_.Value[0]),$($_.Value[1])]" }) -join ','
+$js = "window.EHPAD_DATE='$dataDate';`n" +
+    "// GMP moyen des EHPAD par département [valeur, année] et moyenne des départements pour $lastGmp`n" +
+    "window.GMP_DEP={$gmpJs};`nwindow.GMP_MOYEN=[$gmpMoyen,$lastGmp];`nwindow.EHPAD=[`n" + ($out -join ",`n") + "`n];`n"
 [System.IO.File]::WriteAllText((Join-Path $here 'ehpad.js'), $js, (New-Object System.Text.UTF8Encoding $false))
-Write-Host "$($out.Count) EHPAD exportés ($missing sans coordonnées, $($prix.Count) avec prix) - données du $dataDate"
+Write-Host "$($out.Count) EHPAD exportés ($missing sans coordonnées, $($prix.Count) avec prix, $($has.Count) évalués par la HAS) - données du $dataDate"
