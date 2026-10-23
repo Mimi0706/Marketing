@@ -1,0 +1,682 @@
+<!doctype html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Statistiques EHPAD</title>
+<style>
+  :root {
+    color-scheme: light;
+    --page: #f9f9f7; --surface: #fcfcfb; --text: #0b0b0b; --text-2: #52514e; --muted: #898781;
+    --grid: #e1e0d9; --axis: #c3c2b7; --border: rgba(11,11,11,0.10); --accent: #1d6b5c;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+    --o1: #184f95; --o2: #2a78d6; --o3: #6da7ec; --o4: #86b6ef;
+    --good: #006300; --bad: #b4532a; --hl: #eef5ee;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+      --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --accent: #4fb39d;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+      --o1: #86b6ef; --o2: #5598e7; --o3: #2a78d6; --o4: #184f95;
+      --good: #0ca30c; --bad: #ec835a; --hl: #1d2a22;
+    }
+  }
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #0d0d0d; --surface: #1a1a19; --text: #f0efec; --text-2: #c3c2b7; --muted: #898781;
+    --grid: #2c2c2a; --axis: #383835; --border: rgba(255,255,255,0.10); --accent: #4fb39d;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --o1: #86b6ef; --o2: #5598e7; --o3: #2a78d6; --o4: #184f95;
+    --good: #0ca30c; --bad: #ec835a; --hl: #1d2a22;
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--page); color: var(--text);
+         font: 15px/1.55 system-ui, -apple-system, "Segoe UI", sans-serif; }
+  main { max-width: 1040px; margin: 0 auto; padding: 28px 16px 64px; }
+  a { color: var(--accent); }
+  h1 { font-size: 28px; margin: 0 0 6px; letter-spacing: -0.01em; }
+  h2 { font-size: 21px; margin: 44px 0 6px; padding-top: 8px; border-top: 1px solid var(--grid); }
+  h3 { font-size: 17px; margin: 0 0 4px; }
+  .lead { color: var(--text-2); margin: 0 0 8px; max-width: 760px; }
+  nav.toc { display: flex; flex-wrap: wrap; gap: 6px 14px; font-size: 14px; margin: 16px 0 0; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 18px 20px; margin: 16px 0; overflow-x: auto; }
+  .chart-title { font-weight: 650; font-size: 16px; margin: 14px 0 0; }
+  .chart { width: 100%; min-height: 340px; }
+  .note { font-size: 12.5px; color: var(--muted); margin: 2px 0 0; }
+  .reading { font-size: 14px; color: var(--text-2); margin: 6px 0 0; }
+  .hyp { display: grid; grid-template-columns: 110px 1fr; gap: 2px 12px; font-size: 14px; margin: 8px 0; }
+  .hyp dt { color: var(--muted); }
+  .hyp dd { margin: 0; }
+  .result { background: var(--hl); border-radius: 8px; padding: 10px 14px; margin: 10px 0; font-size: 14px; }
+  .result b { font-variant-numeric: tabular-nums; }
+  .verdict { font-weight: 650; }
+  .verdict.yes { color: var(--good); } .verdict.no { color: var(--bad); }
+  table { border-collapse: collapse; width: 100%; font-size: 13.5px; margin: 8px 0; }
+  th, td { text-align: left; padding: 6px 8px; border-bottom: 1px solid var(--grid); vertical-align: top; }
+  th { color: var(--text-2); font-weight: 600; }
+  td.num, th.num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+  .scroll { overflow-x: auto; }
+  .pill { display: inline-block; font-size: 12px; padding: 1px 8px; border-radius: 99px; background: var(--hl); white-space: nowrap; }
+  ul.tight { margin: 6px 0; padding-left: 20px; }
+  #loading { color: var(--muted); }
+  @media (max-width: 640px) {
+    .hyp { grid-template-columns: 1fr; }
+    .card { padding: 14px; }
+    h1 { font-size: 23px; }
+  }
+</style>
+</head>
+<body>
+<main>
+  <p class="note"><a href="index.html">← Retour à la carte</a></p>
+  <h1>Les EHPAD de France en chiffres</h1>
+  <p class="lead">Analyse statistique des données du site, de la source à la preuve : décrire, joindre, tester, expliquer.
+    Une ligne = un EHPAD (clé : numéro FINESS géographique). Tous les calculs sont refaits à l'ouverture de la page à partir de <code>ehpad.js</code>.</p>
+  <p id="loading">Calcul en cours…</p>
+  <nav class="toc">
+    <a href="#sources">1. Sources</a><a href="#preparation">2. Préparation</a><a href="#description">3. Description</a>
+    <a href="#jointure">4. Jointure départementale</a><a href="#tests">5. Tests d'hypothèses</a>
+    <a href="#regression">6. Régression</a><a href="#departements">7. HAS par département</a><a href="#limites">8. Limites</a>
+  </nav>
+
+  <h2 id="sources">1. Les sources</h2>
+  <div class="card scroll">
+    <table>
+      <thead><tr><th>Source</th><th>Type</th><th>Producteur</th><th>Rythme</th><th>Unité d'observation</th><th>Clé</th></tr></thead>
+      <tbody>
+        <tr><td>FINESS établissements géolocalisés</td><td>Secondaire</td><td>Ministère de la Santé</td><td>Mensuel (gelé depuis mai 2026)</td><td>Établissement</td><td>FINESS géographique</td></tr>
+        <tr><td>FINESS équipements sociaux (capacités)</td><td>Secondaire</td><td>Ministère de la Santé</td><td>Mensuel (gelé)</td><td>Équipement × établissement</td><td>FINESS + discipline + activité + clientèle</td></tr>
+        <tr><td>FINESS entités juridiques</td><td>Secondaire</td><td>Ministère de la Santé</td><td>Mensuel (gelé)</td><td>Gestionnaire</td><td>FINESS juridique</td></tr>
+        <tr><td>Prix hébergement et tarifs dépendance</td><td>Secondaire, déclaratif</td><td>CNSA</td><td>Annuel + mensuel</td><td>Déclaration de prix</td><td>FINESS géographique + date</td></tr>
+        <tr><td>Évaluations qualité ESSMS</td><td>Secondaire</td><td>HAS</td><td>Continu (1 évaluation / 5 ans)</td><td>Établissement évalué</td><td>FINESS géographique</td></tr>
+        <tr><td>Indicateurs de l'annuaire (personnel…)</td><td>Secondaire, déclaratif, <b>collecté par nous</b></td><td>CNSA / ATIH</td><td>Annuel (données 2024)</td><td>EHPAD</td><td>FINESS géographique</td></tr>
+        <tr><td>GIR moyen pondéré départemental</td><td>Secondaire</td><td>CNSA</td><td>Annuel</td><td>Département × année</td><td>Code département</td></tr>
+        <tr><td>Population au 1er janvier</td><td>Secondaire</td><td>INSEE (API Melodi)</td><td>Annuel</td><td>Département × âge</td><td>Code département</td></tr>
+      </tbody>
+    </table>
+    <p class="note">Périodes différentes : prix 2024-2026, personnel 2024, évaluations HAS 2023-2026, population 2025. Le code postal n'est jamais utilisé comme clé.</p>
+  </div>
+
+  <h2 id="preparation">2. Préparation des données</h2>
+  <div class="card" id="prep"></div>
+
+  <h2 id="description">3. Décrire avant de tester</h2>
+  <div class="card">
+    <div class="scroll" id="desc-table"></div>
+    <p class="chart-title" id="t-hist"></p>
+    <div class="chart" id="c-hist"></div>
+    <p class="note" id="n-hist"></p>
+    <p class="reading" id="r-hist"></p>
+  </div>
+
+  <h2 id="jointure">4. Jointure départementale : l'offre rapportée aux 75 ans et plus</h2>
+  <div class="card" id="join"></div>
+
+  <h2 id="tests">5. Tests d'hypothèses</h2>
+  <p class="lead" id="tests-intro"></p>
+  <div class="card scroll" id="summary"></div>
+  <div id="test-cards"></div>
+
+  <h2 id="regression">6. Régression multiple : le prix toutes choses égales par ailleurs</h2>
+  <div class="card" id="reg"></div>
+
+  <h2 id="departements">7. Les niveaux de qualité HAS par département</h2>
+  <div class="card" id="deps"></div>
+
+  <h2 id="limites">8. Limites</h2>
+  <div class="card">
+    <ul class="tight">
+      <li><b>Données déclaratives.</b> Prix et indicateurs de personnel sont déclarés par les établissements, sans contrôle systématique.</li>
+      <li><b>Indépendance des observations.</b> Les tests supposent des EHPAD indépendants ; or ceux d'un même gestionnaire (grands groupes) ou d'un même département partagent des pratiques. Les p-values sont donc probablement trop optimistes ; les tailles d'effet restent interprétables.</li>
+      <li><b>Grand échantillon.</b> Avec plusieurs milliers d'EHPAD, des écarts minimes deviennent « significatifs » : c'est la taille d'effet qui dit si l'écart compte.</li>
+      <li><b>Données manquantes.</b> 32 % des EHPAD n'ont pas encore d'évaluation HAS publiée et 7 % n'ont pas de prix : les résultats valent pour les EHPAD renseignés.</li>
+      <li><b>Corrélation n'est pas causalité.</b> Une association (prix et encadrement, par exemple) peut venir d'une troisième variable : statut, département, taille.</li>
+      <li><b>Comparaisons HAS.</b> La méthode de cotation a changé en 2025 ; la HAS juge les comparaisons entre structures peu pertinentes pour le premier cycle.</li>
+      <li><b>Erreur écologique.</b> Les résultats départementaux (section 4) ne disent rien d'un EHPAD particulier.</li>
+    </ul>
+  </div>
+  <p class="note" id="footer"></p>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jstat/1.9.6/jstat.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/plotly.js/4.1.2/plotly.min.js"></script>
+<script src="stats-lib.js"></script>
+<script src="deps.js"></script>
+<script src="ehpad.js"></script>
+<script>
+"use strict";
+const S = Stats;
+const $ = id => document.getElementById(id);
+const css = name => getComputedStyle(document.documentElement).getPropertyValue(name).trim();
+
+// ---------- Mise en forme ----------
+const nf = (x, d = 0) => x == null || !isFinite(x) ? "–" : x.toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const eur = x => nf(x) + " €";
+const pfmt = p => p < 0.001 ? "< 0,001" : nf(p, 3);
+const sign = x => (x > 0 ? "+" : "") + nf(x, 1);
+const STATUT = { pub: "Public", pnl: "Privé non lucratif", com: "Privé commercial" };
+const STATUTS = ["pub", "pnl", "com"];
+const LEVELS = ["A", "B", "C", "D"];
+const IDF = ["75", "77", "78", "91", "92", "93", "94", "95"];
+const colorStatut = () => ({ pub: css("--s1"), pnl: css("--s2"), com: css("--s3") });
+const colorLevel = () => ({ A: css("--o1"), B: css("--o2"), C: css("--o3"), D: css("--o4") });
+const depName = d => `${DEP_NUM[d] || d} ${DEPS[d] || ""}`.trim();
+
+function layout(extra = {}) {
+  const ink = css("--text-2"), grid = css("--grid");
+  return Object.assign({
+    paper_bgcolor: "rgba(0,0,0,0)", plot_bgcolor: "rgba(0,0,0,0)",
+    font: { family: 'system-ui, -apple-system, "Segoe UI", sans-serif', size: 12.5, color: ink },
+    margin: { l: 64, r: 16, t: 12, b: 52 },
+    xaxis: { gridcolor: grid, zerolinecolor: css("--axis"), linecolor: css("--axis"), automargin: true },
+    yaxis: { gridcolor: grid, zerolinecolor: css("--axis"), linecolor: css("--axis"), automargin: true },
+    legend: { orientation: "h", y: 1.08, x: 0 },
+    hoverlabel: { font: { family: "system-ui, sans-serif" } },
+    separators: ", ",
+  }, extra);
+}
+const plot = (id, data, lay) => Plotly.newPlot(id, data, layout(lay), { displaylogo: false, responsive: true,
+  modeBarButtonsToRemove: ["lasso2d", "select2d"], locale: "fr" });
+
+// ---------- Préparation : une ligne = un EHPAD ----------
+const validRate = v => v != null && v > 0 && v <= 100 ? v : null;
+const raw = window.EHPAD;
+let excl = { encInvalid: 0, rotInvalid: 0, absInvalid: 0, encZero: 0, rotZero: 0, absZero: 0 };
+const rows = raw.map(e => {
+  const i = e.i || {};
+  for (const k of ["enc", "rot", "abs"]) {
+    const v = i[k];
+    if (v != null && (v < 0 || v > 100)) excl[k + "Invalid"]++;
+    else if (v === 0) excl[k + "Zero"]++;
+  }
+  return {
+    id: e.id, n: e.n, dep: e.d, st: e.st || null, hab: e.h === 1, places: e.p || null,
+    // Même calcul que la carte : (chambre seule, sinon tarif aide sociale, + tarif dépendance GIR 5-6) × 30 jours
+    prix: (e.pc ?? e.pa) != null ? Math.round(((e.pc ?? e.pa) + (e.g?.[2] || 0)) * 30) : null, q: e.q || null,
+    enc: validRate(i.enc), rot: validRate(i.rot), abs: validRate(i.abs),
+    inf: i.inf === 1 ? true : i.inf === 0 ? false : null, med: i.med === 1 ? true : i.med === 0 ? false : null,   // -1 = non transmis
+  };
+});
+const N = rows.length;
+const withPrice = rows.filter(r => r.prix);
+
+// ---------- Tests (famille de 12 tests confirmatoires, correction de Bonferroni) ----------
+const tests = [];
+const M_TESTS = 12;
+function register(t) { t.padj = Math.min(1, t.p * M_TESTS); t.signif = t.padj < 0.05; tests.push(t); return t; }
+
+function renderPrep() {
+  const nPrix = withPrice.length, nEnc = rows.filter(r => r.enc != null).length, nQ = rows.filter(r => r.q).length;
+  $("prep").innerHTML = `
+    <p><b>${nf(N)} EHPAD</b> (catégorie FINESS 500, France entière). Données utilisables :</p>
+    <ul class="tight">
+      <li>prix mensuel estimé : <b>${nf(nPrix)}</b> EHPAD (${nf(100 * nPrix / N)} %) ; variable = (prix chambre seule + tarif dépendance GIR 5-6) × 30 jours ;</li>
+      <li>niveau de qualité HAS : <b>${nf(nQ)}</b> EHPAD (${nf(100 * nQ / N)} %) ;</li>
+      <li>taux d'encadrement : <b>${nf(nEnc)}</b> EHPAD (${nf(100 * nEnc / N)} %).</li>
+    </ul>
+    <p>Nettoyage des taux de personnel (encadrement / turnover / absentéisme) :</p>
+    <ul class="tight">
+      <li>valeurs hors de 0-100 (ex. −1) traitées comme « non transmis », comme le fait l'annuaire officiel : ${excl.encInvalid} / ${excl.rotInvalid} / ${excl.absInvalid} EHPAD ;</li>
+      <li>valeurs égales à 0 % exclues car non crédibles sur une année (aucun départ ni aucune absence) : ${excl.encZero} / ${excl.rotZero} / ${excl.absZero} EHPAD.</li>
+    </ul>
+    <p class="note">Les valeurs extrêmes de prix (au-delà de 1,5 × l'écart interquartile) ont été vérifiées et conservées : ce sont de vrais établissements haut de gamme (section 3).</p>`;
+}
+
+function renderDescription() {
+  const vars = [
+    ["Prix mensuel estimé (€)", withPrice.map(r => r.prix), 0],
+    ["Taux d'encadrement (ETP pour 100 résidents)", rows.filter(r => r.enc != null).map(r => r.enc), 1],
+    ["Turnover du personnel (%)", rows.filter(r => r.rot != null).map(r => r.rot), 1],
+    ["Absentéisme (%)", rows.filter(r => r.abs != null).map(r => r.abs), 1],
+    ["Places en hébergement permanent", rows.filter(r => r.places).map(r => r.places), 0],
+  ];
+  const d = vars.map(([name, a, k]) => ({ name, k, ...S.describe(a) }));
+  $("desc-table").innerHTML = `<table><thead><tr><th>Variable</th><th class="num">n</th><th class="num">Min</th><th class="num">Q1</th><th class="num">Médiane</th><th class="num">Moyenne</th><th class="num">Q3</th><th class="num">Max</th><th class="num">Asymétrie</th><th class="num">Valeurs extrêmes</th></tr></thead><tbody>
+    ${d.map(x => `<tr><td>${x.name}</td><td class="num">${nf(x.n)}</td><td class="num">${nf(x.min, x.k)}</td><td class="num">${nf(x.q1, x.k)}</td><td class="num">${nf(x.median, x.k)}</td><td class="num">${nf(x.mean, x.k)}</td><td class="num">${nf(x.q3, x.k)}</td><td class="num">${nf(x.max, x.k)}</td><td class="num">${nf(x.skew, 2)}</td><td class="num">${nf(x.outliers)}</td></tr>`).join("")}
+    </tbody></table>
+    <p class="note">Asymétrie > 1 : distribution étirée vers la droite ; la médiane résume mieux que la moyenne. Valeurs extrêmes : au-delà de Q3 + 1,5 × (Q3 − Q1) ou en deçà de Q1 − 1,5 × (Q3 − Q1).</p>`;
+
+  const p = d[0], prices = withPrice.map(r => r.prix);
+  const out = withPrice.filter(r => r.prix > p.highFence);
+  const outIdf = out.filter(r => IDF.includes(r.dep)).length;
+  const logSkew = S.skewness(prices.map(Math.log));
+  $("t-hist").textContent = `La moitié des EHPAD coûtent moins de ${eur(Math.round(p.median / 10) * 10)} par mois ; quelques établissements très chers tirent la moyenne à ${eur(Math.round(p.mean / 10) * 10)}`;
+  plot("c-hist", [{
+    type: "histogram", x: prices, xbins: { size: 100 }, marker: { color: css("--s1"), line: { color: css("--surface"), width: 1 } },
+    hovertemplate: "%{x} €/mois<br>%{y} EHPAD<extra></extra>", name: "EHPAD",
+  }], {
+    xaxis: { title: { text: "Prix mensuel estimé (€)" }, gridcolor: css("--grid"), range: [1000, 6000] },
+    yaxis: { title: { text: "Nombre d'EHPAD" }, gridcolor: css("--grid") }, showlegend: false, bargap: 0,
+    shapes: [
+      { type: "line", x0: p.median, x1: p.median, yref: "paper", y0: 0, y1: 1, line: { color: css("--text"), width: 2 } },
+      { type: "line", x0: p.mean, x1: p.mean, yref: "paper", y0: 0, y1: 1, line: { color: css("--text"), width: 2, dash: "dot" } },
+    ],
+    annotations: [
+      { x: p.median, yref: "paper", y: 1, text: `médiane ${eur(p.median)}`, showarrow: false, xanchor: "right", xshift: -4, font: { color: css("--text") } },
+      { x: p.mean, yref: "paper", y: 0.92, text: `moyenne ${eur(p.mean)}`, showarrow: false, xanchor: "left", xshift: 4, font: { color: css("--text") } },
+    ],
+  });
+  $("n-hist").textContent = `Source : CNSA, prix déclarés 2024-2026 ; n = ${nf(p.n)} EHPAD. Axe limité à 6 000 € (${nf(prices.filter(x => x > 6000).length)} EHPAD au-delà).`;
+  $("r-hist").innerHTML = `Lecture : 50 % des EHPAD coûtent entre ${eur(p.q1)} et ${eur(p.q3)} par mois. La distribution est asymétrique (coefficient ${nf(p.skew, 2)} ; encore ${nf(logSkew, 2)} après passage au logarithme) :
+    on privilégie donc la médiane et des <b>tests non paramétriques</b> (fondés sur les rangs). ${nf(out.length)} EHPAD dépassent ${eur(p.highFence)} ; ${nf(100 * outIdf / out.length)} % d'entre eux sont en Île-de-France : ce sont des valeurs réelles, conservées.`;
+}
+
+// ---------- Section 4 : agréger au département, puis joindre GMP et population ----------
+function renderJoin() {
+  const byDep = {};
+  for (const r of rows) {
+    const d = (byDep[r.dep] ||= { dep: r.dep, n: 0, places: 0, prices: [] });
+    d.n++; d.places += r.places || 0; if (r.prix) d.prices.push(r.prix);
+  }
+  const deps = Object.values(byDep).map(d => {
+    const pop = (window.POP_DEP || {})[d.dep], gmp = (window.GMP_DEP || {})[d.dep];
+    return { ...d, p75: pop ? pop[1] : null, gmp: gmp ? gmp[0] : null,
+      tx: pop ? 1000 * d.places / pop[1] : null, prixMed: d.prices.length >= 5 ? S.median(d.prices) : null };
+  }).filter(d => d.tx != null && d.prixMed != null);
+  const t = register(Object.assign(S.spearman(deps.map(d => d.tx), deps.map(d => d.prixMed)), { id: 8,
+    question: "Les départements les mieux équipés sont-ils moins chers ?", y: "Prix médian du département", x: "Places pour 1 000 habitants de 75 ans et plus",
+    effectLabel: "ρ", effect: null }));
+  t.effect = t.rho; t.mag = S.magnitude("r", t.rho);
+  const sorted = [...deps].sort((a, b) => b.tx - a.tx);
+  const top = sorted.slice(0, 5), bottom = sorted.slice(-5).reverse();
+  const tm = S.median(deps.map(d => d.tx));
+  const gm = deps.filter(d => d.gmp);
+  const tg = S.spearman(gm.map(d => d.gmp), gm.map(d => d.tx));
+  $("join").innerHTML = `
+    <p><b>Agréger avant de joindre.</b> Le GIR moyen et la population n'existent qu'au niveau du département : on calcule d'abord, pour chaque département,
+      le nombre de places et le prix médian des EHPAD, puis on joint la population INSEE des 75 ans et plus (${window.POP_YEAR}) et le GMP (CNSA).
+      Joindre directement la population à chaque EHPAD l'aurait recopiée des dizaines de fois. Unité d'observation : le département (n = ${deps.length}).</p>
+    <p>Médiane : <b>${nf(tm)} places pour 1 000 personnes de 75 ans et plus</b>.
+      Les mieux dotés : ${top.map(d => `${depName(d.dep)} (${nf(d.tx)})`).join(", ")}.
+      Les moins dotés : ${bottom.map(d => `${depName(d.dep)} (${nf(d.tx)})`).join(", ")}.</p>
+    <p class="chart-title">${t.rho < -0.1 ? "Plus un département compte de places par habitant âgé, moins ses EHPAD sont chers" : t.rho > 0.1 ? "Les départements les mieux équipés sont aussi les plus chers" : "Le niveau d'équipement d'un département ne dit presque rien de ses prix"}</p>
+    <div class="chart" id="c-join"></div>
+    <p class="note">Sources : FINESS, CNSA, INSEE ${window.POP_YEAR}. n = ${deps.length} départements. Survolez un point pour voir le département.</p>
+    ${resultBlock(t)}
+    <p class="reading">Autre lien exploratoire : GMP départemental et places pour 1 000 : ρ = ${nf(tg.rho, 2)} (n = ${gm.length}, p = ${pfmt(tg.p)}).
+      ${Math.abs(tg.rho) < 0.1 ? "Le niveau de dépendance des résidents n'est pas lié à l'offre disponible." : tg.rho > 0 ? "Les départements mieux équipés accueillent des résidents en moyenne plus dépendants." : "Les départements les moins équipés accueillent des résidents plus dépendants : l'entrée en EHPAD y serait plus tardive."}
+      Résultat valable entre départements seulement (erreur écologique).</p>`;
+  plot("c-join", [{
+    type: "scatter", mode: "markers", x: deps.map(d => d.tx), y: deps.map(d => d.prixMed),
+    text: deps.map(d => depName(d.dep)), marker: { size: 9, color: css("--s1"), line: { color: css("--surface"), width: 2 } },
+    hovertemplate: "<b>%{text}</b><br>%{x:.0f} places pour 1 000<br>prix médian %{y:,.0f} €<extra></extra>",
+  }], { xaxis: { title: { text: "Places pour 1 000 habitants de 75 ans et plus" }, gridcolor: css("--grid") },
+        yaxis: { title: { text: "Prix médian (€/mois)" }, gridcolor: css("--grid") }, showlegend: false });
+}
+
+// Bloc de résultat commun : statistique, p, p ajustée, effet, verdict
+function resultBlock(t) {
+  const stat = t.H != null ? `H(${t.df}) = ${nf(t.H, 1)}` : t.chi2 != null ? `χ²(${t.df}) = ${nf(t.chi2, 1)}` :
+    t.z != null ? `z = ${nf(t.z, 2)}` : t.rho != null ? `ρ = ${nf(t.rho, 3)} (n = ${nf(t.n)})` : "";
+  const eff = `${t.effectLabel} = ${nf(t.effect, 3)}`;
+  return `<div class="result">${t.test} : <b>${stat}</b> · p = <b>${pfmt(t.p)}</b> · p ajustée (Bonferroni ×${M_TESTS}) = <b>${pfmt(t.padj)}</b>
+    · taille d'effet <b>${eff}</b> (${t.mag})<br>
+    <span class="verdict ${t.signif ? "yes" : "no"}">${t.signif ? "On rejette H0" : "On ne rejette pas H0"}</span>${t.signif && (t.mag === "négligeable") ? " — mais l'effet est négligeable : écart réel, sans portée pratique." : ""}</div>`;
+}
+
+function card(t, body) {
+  const div = document.createElement("div");
+  div.className = "card";
+  div.innerHTML = `<h3>Test ${t.id} — ${t.question}</h3>
+    <dl class="hyp"><dt>Y (expliquée)</dt><dd>${t.y}</dd><dt>X (explicative)</dt><dd>${t.x}</dd>
+      <dt>H0</dt><dd>${t.h0}</dd><dt>H1</dt><dd>${t.h1}</dd><dt>Test choisi</dt><dd>${t.why}</dd></dl>${body}`;
+  $("test-cards").append(div);
+  return div;
+}
+
+function chartBlock(id, title, note) {
+  return `<p class="chart-title">${title}</p><div class="chart" id="${id}"></div><p class="note">${note}</p>`;
+}
+
+function boxes(id, groups, colors, ytitle, extra = {}) {
+  plot(id, groups.map(g => ({
+    type: "box", y: g.values, name: g.name, marker: { color: colors[g.key] || css("--s1"), size: 3, opacity: 0.4 },
+    line: { width: 1.5 }, boxpoints: "suspectedoutliers", boxmean: false, hoverinfo: "y",
+  })), Object.assign({ yaxis: { title: { text: ytitle }, gridcolor: css("--grid") }, showlegend: false }, extra));
+}
+
+function stackedPct(id, cats, series, colors, xtitle) {
+  plot(id, series.map(s => ({
+    type: "bar", orientation: "h", y: cats.map(c => c.label), x: cats.map(c => 100 * (c.counts[s] || 0) / c.total),
+    name: s, marker: { color: colors[s], line: { color: css("--surface"), width: 2 } },
+    customdata: cats.map(c => c.counts[s] || 0),
+    hovertemplate: `%{y}<br>${s} : %{x:.1f} % (%{customdata} EHPAD)<extra></extra>`,
+  })), { barmode: "stack", xaxis: { title: { text: xtitle }, range: [0, 100], ticksuffix: " %", gridcolor: css("--grid") },
+         yaxis: { autorange: "reversed", gridcolor: "rgba(0,0,0,0)", tickmode: "array", tickvals: cats.map(c => c.label), tickfont: { size: cats.length > 20 ? 11 : 12.5 } }, legend: { orientation: "h", y: 1, yanchor: "bottom", x: 0, traceorder: "normal" }, margin: { l: 140, r: 16, t: 34, b: 48 } });
+}
+
+// ---------- Les tests ----------
+function runTests() {
+  const col = colorStatut(), lev = colorLevel();
+
+  // Test 1 : prix selon le statut
+  {
+    const g = STATUTS.map(s => withPrice.filter(r => r.st === s).map(r => r.prix));
+    const t = register(Object.assign(S.kruskal(g), { id: 1, question: "Le prix dépend-il du statut de l'EHPAD ?",
+      y: "Prix mensuel estimé (quantitatif)", x: "Statut : public, privé non lucratif, privé commercial (qualitatif, 3 groupes)",
+      h0: "les trois statuts ont la même distribution de prix", h1: "au moins un statut a des prix différents (bilatéral)",
+      why: "Y quantitative, X à 3 groupes → ANOVA ; prix très asymétriques → version non paramétrique de <b>Kruskal-Wallis</b>. Vérification avec l'ANOVA de Welch sur le logarithme du prix (variances inégales).",
+      effectLabel: "η²" }));
+    t.effect = t.eta2; t.mag = S.magnitude("eta2", t.eta2);
+    const wa = S.welchAnova(g.map(a => a.map(Math.log)));
+    const med = g.map(S.median);
+    const pairs = [[0, 1], [0, 2], [1, 2]].map(([a, b]) => ({ a, b, ...S.mannWhitney(g[b], g[a]) }));
+    const ratio = 100 * (med[2] / med[0] - 1);
+    const div = card(t, `${resultBlock(t)}
+      <p class="reading">Vérification paramétrique : ANOVA de Welch sur log(prix) : F(${nf(wa.df1)} ; ${nf(wa.df2, 0)}) = ${nf(wa.F, 1)}, p = ${pfmt(wa.p)}, η² = ${nf(wa.eta2, 3)}.</p>
+      <table><thead><tr><th>Comparaison deux à deux (Mann-Whitney, Bonferroni ×3)</th><th class="num">Écart des médianes</th><th class="num">r rang-bisérial</th><th class="num">p ajustée</th></tr></thead><tbody>
+      ${pairs.map(c => `<tr><td>${STATUT[STATUTS[c.b]]} vs ${STATUT[STATUTS[c.a]]}</td><td class="num">${med[c.b] > med[c.a] ? "+" : ""}${eur(med[c.b] - med[c.a])}</td><td class="num">${nf(c.r, 2)}</td><td class="num">${pfmt(Math.min(1, c.p * 3))}</td></tr>`).join("")}
+      </tbody></table>
+      ${chartBlock("c-t1", `Le privé commercial coûte ${nf(ratio)} % de plus que le public (médianes : ${eur(med[2])} contre ${eur(med[0])})`,
+        `Source : CNSA et FINESS. n = ${g.map((a, i) => `${STATUT[STATUTS[i]]} ${nf(a.length)}`).join(", ")}. Boîtes : quartiles ; trait : médiane ; points : valeurs extrêmes.`)}
+      <p class="reading">Lecture : la taille d'effet η² = ${nf(t.eta2, 2)} signifie que le statut explique environ ${nf(100 * t.eta2)} % de la variabilité (des rangs) des prix — un effet ${t.mag}.</p>`);
+    boxes("c-t1", g.map((v, i) => ({ values: v, name: STATUT[STATUTS[i]], key: STATUTS[i] })), col, "Prix mensuel estimé (€)", { yaxis: { range: [1000, 6000], title: { text: "Prix mensuel estimé (€)" }, gridcolor: css("--grid") } });
+  }
+
+  // Test 2 : prix selon l'habilitation à l'aide sociale
+  {
+    const a = withPrice.filter(r => r.hab).map(r => r.prix), b = withPrice.filter(r => !r.hab).map(r => r.prix);
+    const t = register(Object.assign(S.mannWhitney(a, b), { id: 2, question: "Les EHPAD habilités à l'aide sociale sont-ils moins chers ?",
+      y: "Prix mensuel estimé (quantitatif)", x: "Habilitation à l'aide sociale : oui / non (qualitatif, 2 groupes)",
+      h0: "même distribution de prix pour les habilités et les non habilités", h1: "les prix diffèrent (bilatéral)",
+      why: "Y quantitative, X à 2 groupes → test t ; distribution asymétrique → <b>Mann-Whitney</b>. Vérification : t de Welch sur log(prix), avec le d de Cohen.",
+      effectLabel: "r rang-bisérial" }));
+    t.effect = t.r; t.mag = S.magnitude("r", t.r);
+    const wt = S.welchT(a.map(Math.log), b.map(Math.log));
+    const ma = S.median(a), mb = S.median(b);
+    const div = card(t, `${resultBlock(t)}
+      <p class="reading">Vérification paramétrique : t de Welch sur log(prix) : t(${nf(wt.df)}) = ${nf(wt.t, 1)}, p = ${pfmt(wt.p)}, d de Cohen = ${nf(wt.d, 2)} (${S.magnitude("d", wt.d)}).</p>
+      ${chartBlock("c-t2", `Les EHPAD habilités à l'aide sociale coûtent ${eur(Math.abs(mb - ma))} de ${ma < mb ? "moins" : "plus"} par mois (médianes)`,
+        `Source : CNSA et FINESS. n = ${nf(a.length)} habilités, ${nf(b.length)} non habilités.`)}
+      <p class="reading">Lecture : r = ${nf(t.r, 2)} : en tirant au hasard un EHPAD habilité et un non habilité, le premier est le moins cher dans environ ${nf(100 * (1 - t.r) / 2)} % des cas.</p>`);
+    boxes("c-t2", [{ values: a, name: "Habilité", key: "a" }, { values: b, name: "Non habilité", key: "b" }],
+      { a: col.pub, b: col.pnl }, "Prix mensuel estimé (€)", { yaxis: { range: [1000, 6000], title: { text: "Prix mensuel estimé (€)" }, gridcolor: css("--grid") } });
+  }
+
+  // Test 3 : niveau HAS selon le statut
+  {
+    const ev = rows.filter(r => r.q && r.st);
+    const table = STATUTS.map(s => LEVELS.map(l => ev.filter(r => r.st === s && r.q === l).length));
+    const t = register(Object.assign(S.chi2(table), { id: 3, question: "Le niveau de qualité HAS dépend-il du statut ?",
+      y: "Niveau HAS A, B, C ou D (qualitatif)", x: "Statut (qualitatif, 3 groupes)",
+      h0: "niveau HAS et statut sont indépendants", h1: "le niveau HAS dépend du statut",
+      why: "Deux variables qualitatives → <b>Khi² d'indépendance</b> (effectifs attendus tous ≥ 5, sinon test exact de Fisher). Effet : V de Cramér.",
+      effectLabel: "V de Cramér" }));
+    t.effect = t.V; t.mag = S.magnitude("V", t.V, t.dfStar);
+    const pctA = table.map(r => 100 * r[0] / S.sum(r));
+    const best = pctA.indexOf(Math.max(...pctA)), worst = pctA.indexOf(Math.min(...pctA));
+    card(t, `${resultBlock(t)}
+      <p class="reading">Plus petit effectif attendu : ${nf(t.minExpected, 1)} (≥ 5 : conditions du Khi² respectées).</p>
+      ${chartBlock("c-t3", `${pctA.map((p, i) => `${nf(p)} % de A dans le ${STATUT[STATUTS[i]].toLowerCase()}`).join(", ")} : ${STATUT[STATUTS[best]].toLowerCase()} en tête`,
+        `Source : HAS, évaluations 2023-2026. n = ${nf(ev.length)} EHPAD évalués.`)}`);
+    stackedPct("c-t3", STATUTS.map((s, i) => ({ label: STATUT[s], total: S.sum(table[i]), counts: Object.fromEntries(LEVELS.map((l, j) => [l, table[i][j]])) })),
+      LEVELS, lev, "Part des EHPAD évalués");
+  }
+
+  // Test 4 : prix et encadrement (et piège de la variable cachée : le statut)
+  {
+    const d = withPrice.filter(r => r.enc != null);
+    const t = register(Object.assign(S.spearman(d.map(r => r.enc), d.map(r => r.prix)), { id: 4,
+      question: "Les EHPAD mieux encadrés sont-ils plus chers ?",
+      y: "Prix mensuel estimé (quantitatif)", x: "Taux d'encadrement (quantitatif)",
+      h0: "pas de lien monotone entre encadrement et prix (ρ = 0)", h1: "il existe un lien (bilatéral)",
+      why: "Deux variables quantitatives → corrélation ; distributions asymétriques et valeurs extrêmes → <b>Spearman</b> (sur les rangs). On recalcule ensuite le lien à l'intérieur de chaque statut pour contrôler une variable cachée.",
+      effectLabel: "ρ" }));
+    t.effect = t.rho; t.mag = S.magnitude("r", t.rho);
+    const within = STATUTS.map(s => { const x = d.filter(r => r.st === s); return { s, n: x.length, ...S.spearman(x.map(r => r.enc), x.map(r => r.prix)) }; });
+    card(t, `${resultBlock(t)}
+      <table><thead><tr><th>À statut égal</th><th class="num">n</th><th class="num">ρ de Spearman</th><th class="num">p</th></tr></thead><tbody>
+      ${within.map(w => `<tr><td>${STATUT[w.s]}</td><td class="num">${nf(w.n)}</td><td class="num">${nf(w.rho, 3)}</td><td class="num">${pfmt(w.p)}</td></tr>`).join("")}</tbody></table>
+      ${chartBlock("c-t4", t.rho < -0.1 ? "Les EHPAD les plus chers ne sont pas les mieux encadrés : le lien est même négatif" : t.rho > 0.1 ? "Payer plus cher va de pair avec un meilleur encadrement, mais faiblement" : "Le prix ne dit presque rien du taux d'encadrement",
+        `Source : CNSA (prix) et annuaire officiel (encadrement 2024). n = ${nf(d.length)} EHPAD. Couleur : statut.`)}
+      <p class="reading">Lecture : ρ global = ${nf(t.rho, 2)}. ${within.every(w => Math.sign(w.rho) !== Math.sign(t.rho))
+        ? `<b>Le lien change de signe à statut égal</b> (ρ de ${nf(Math.min(...within.map(w => w.rho)), 2)} à ${nf(Math.max(...within.map(w => w.rho)), 2)}) : c'est un paradoxe de Simpson.
+           ${(() => { const m = STATUTS.map(s => ({ s, enc: S.median(d.filter(r => r.st === s).map(r => r.enc)), prix: S.median(d.filter(r => r.st === s).map(r => r.prix)) }));
+              const cheap = [...m].sort((a, b) => a.prix - b.prix)[0], dear = [...m].sort((a, b) => b.prix - a.prix)[0];
+              return `Le ${STATUT[cheap.s].toLowerCase()}, le moins cher (médiane ${eur(cheap.prix)}), est encadré à ${nf(cheap.enc, 1)} ; le ${STATUT[dear.s].toLowerCase()}, le plus cher (${eur(dear.prix)}), à ${nf(dear.enc, 1)}.`; })()}
+           Mélanger les statuts fait apparaître un lien négatif qui n'existe dans aucun d'eux. Le statut est une variable cachée, comme la taille des villes dans l'exemple des pistes cyclables du cours. Dans tous les cas, le lien reste négligeable.`
+        : within.some(w => Math.abs(w.rho) < Math.abs(t.rho) / 2)
+        ? "À statut égal, le lien s'affaiblit : une partie de la corrélation globale vient du statut (variable cachée), comme dans l'exemple des pistes cyclables du cours."
+        : "Le lien se retrouve à l'intérieur de chaque statut : il ne s'explique pas seulement par le statut."}
+        Le tarif hébergement payé par la famille ne finance pas les soignants (financés par l'assurance maladie) : un prix élevé reflète surtout l'immobilier et l'hôtellerie.</p>`);
+    plot("c-t4", STATUTS.map(s => { const x = d.filter(r => r.st === s); return {
+      type: "scattergl", mode: "markers", name: STATUT[s], x: x.map(r => r.enc), y: x.map(r => r.prix),
+      marker: { color: col[s], size: 6, opacity: 0.45 }, text: x.map(r => r.n),
+      hovertemplate: "%{text}<br>encadrement %{x:.1f}<br>%{y:,.0f} €/mois<extra></extra>" }; }),
+      { xaxis: { title: { text: "Taux d'encadrement (ETP soignants et éducatifs pour 100 résidents)" }, range: [0, 100], gridcolor: css("--grid") },
+        yaxis: { title: { text: "Prix mensuel estimé (€)" }, range: [1000, 6000], gridcolor: css("--grid") } });
+  }
+
+  // Test 5 : encadrement selon le niveau HAS
+  {
+    const d = rows.filter(r => r.q && r.enc != null);
+    const g = LEVELS.map(l => d.filter(r => r.q === l).map(r => r.enc));
+    const t = register(Object.assign(S.kruskal(g), { id: 5, question: "Les EHPAD mieux notés par la HAS sont-ils mieux encadrés ?",
+      y: "Taux d'encadrement (quantitatif)", x: "Niveau HAS A, B, C, D (qualitatif, 4 groupes)",
+      h0: "même distribution d'encadrement quel que soit le niveau HAS", h1: "l'encadrement diffère selon le niveau (bilatéral)",
+      why: "Y quantitative, X à 4 groupes → ANOVA ; groupe D petit et distributions asymétriques → <b>Kruskal-Wallis</b>.",
+      effectLabel: "η²" }));
+    t.effect = t.eta2; t.mag = S.magnitude("eta2", t.eta2);
+    const med = g.map(S.median);
+    card(t, `${resultBlock(t)}
+      ${chartBlock("c-t5", `Encadrement médian : ${LEVELS.map((l, i) => `${nf(med[i], 1)} pour ${l}`).join(", ")} — ${t.mag === "négligeable" ? "la note HAS ne reflète presque pas le nombre de soignants" : "les mieux notés sont un peu mieux encadrés"}`,
+        `Sources : HAS et annuaire officiel. n = ${LEVELS.map((l, i) => `${l} ${nf(g[i].length)}`).join(", ")}.`)}
+      <p class="reading">La HAS évalue des pratiques (bientraitance, droits, projet personnalisé…), pas des effectifs : un EHPAD peut être bien noté avec un encadrement moyen.</p>`);
+    boxes("c-t5", g.map((v, i) => ({ values: v, name: `Niveau ${LEVELS[i]}`, key: LEVELS[i] })), lev, "Taux d'encadrement", { yaxis: { range: [0, 100], title: { text: "Taux d'encadrement" }, gridcolor: css("--grid") } });
+  }
+
+  // Test 6 : infirmier de nuit selon le statut
+  {
+    const d = rows.filter(r => r.st && r.inf != null);
+    const table = STATUTS.map(s => [d.filter(r => r.st === s && r.inf).length, d.filter(r => r.st === s && !r.inf).length]);
+    const t = register(Object.assign(S.chi2(table), { id: 6, question: "La présence d'un infirmier de nuit dépend-elle du statut ?",
+      y: "Infirmier de nuit oui / non (qualitatif)", x: "Statut (qualitatif, 3 groupes)",
+      h0: "présence d'un infirmier de nuit et statut indépendants", h1: "la présence dépend du statut",
+      why: "Deux variables qualitatives → <b>Khi² d'indépendance</b>. Effet : V de Cramér.", effectLabel: "V de Cramér" }));
+    t.effect = t.V; t.mag = S.magnitude("V", t.V, t.dfStar);
+    const pct = table.map(r => 100 * r[0] / (r[0] + r[1]));
+    card(t, `${resultBlock(t)}
+      ${chartBlock("c-t6", `Un infirmier la nuit dans ${pct.map((p, i) => `${nf(p)} % des EHPAD ${["publics", "privés non lucratifs", "privés commerciaux"][i]}`).join(", ")}`,
+        `Source : annuaire officiel (données 2024). n = ${nf(d.length)} EHPAD.`)}`);
+    plot("c-t6", [{ type: "bar", x: STATUTS.map(s => STATUT[s]), y: pct, marker: { color: STATUTS.map(s => col[s]) },
+      text: pct.map(p => nf(p) + " %"), textposition: "outside", hovertemplate: "%{x} : %{y:.1f} %<extra></extra>" }],
+      { yaxis: { title: { text: "Part des EHPAD avec infirmier de nuit" }, ticksuffix: " %", gridcolor: css("--grid"), rangemode: "tozero" }, showlegend: false });
+  }
+
+  // Test 7 : turnover et absentéisme
+  {
+    const d = rows.filter(r => r.rot != null && r.abs != null);
+    const t = register(Object.assign(S.spearman(d.map(r => r.abs), d.map(r => r.rot)), { id: 7,
+      question: "Les EHPAD où le personnel est souvent absent sont-ils aussi ceux où il part le plus ?",
+      y: "Turnover du personnel (quantitatif)", x: "Absentéisme (quantitatif)",
+      h0: "pas de lien monotone (ρ = 0)", h1: "il existe un lien (bilatéral)",
+      why: "Deux variables quantitatives asymétriques → <b>Spearman</b>.", effectLabel: "ρ" }));
+    t.effect = t.rho; t.mag = S.magnitude("r", t.rho);
+    card(t, `${resultBlock(t)}
+      ${chartBlock("c-t7", t.rho > 0.1 ? "Absentéisme et turnover vont de pair : deux signaux d'un même malaise des équipes" : "Absentéisme et turnover sont peu liés : deux indicateurs complémentaires",
+        `Source : annuaire officiel (données 2024). n = ${nf(d.length)} EHPAD. Axes limités à 60 %.`)}`);
+    plot("c-t7", [{ type: "scattergl", mode: "markers", x: d.map(r => r.abs), y: d.map(r => r.rot), text: d.map(r => r.n),
+      marker: { color: css("--s1"), size: 5, opacity: 0.35 }, hovertemplate: "%{text}<br>absentéisme %{x:.1f} %<br>turnover %{y:.1f} %<extra></extra>" }],
+      { xaxis: { title: { text: "Absentéisme (%)" }, range: [0, 60], gridcolor: css("--grid") },
+        yaxis: { title: { text: "Turnover (%)" }, range: [0, 60], gridcolor: css("--grid") }, showlegend: false });
+  }
+
+}
+
+function runMoreTests() {
+  const col = colorStatut(), lev = colorLevel();
+
+  // Test 9 : payer plus cher, est-ce être mieux noté ? (et à statut égal)
+  {
+    const d = withPrice.filter(r => r.q);
+    const g = LEVELS.map(l => d.filter(r => r.q === l).map(r => r.prix));
+    const t = register(Object.assign(S.kruskal(g), { id: 9, question: "Les EHPAD mieux notés par la HAS sont-ils plus chers ?",
+      y: "Prix mensuel estimé (quantitatif)", x: "Niveau HAS A, B, C, D (qualitatif, 4 groupes)",
+      h0: "même distribution de prix quel que soit le niveau HAS", h1: "les prix diffèrent selon le niveau (bilatéral)",
+      why: "Y quantitative, X à 4 groupes → ANOVA ; prix asymétriques → <b>Kruskal-Wallis</b>. Le statut jouant à la fois sur le prix (test 1) et sur la note (test 3), on refait le test à statut égal.",
+      effectLabel: "η²" }));
+    t.effect = t.eta2; t.mag = S.magnitude("eta2", t.eta2);
+    const med = g.map(S.median);
+    const within = STATUTS.map(s => { const gs = LEVELS.map(l => d.filter(r => r.st === s && r.q === l).map(r => r.prix));
+      return { s, med: gs.map(a => a.length ? S.median(a) : null), n: S.sum(gs.map(a => a.length)), ...S.kruskal(gs.filter(a => a.length)) }; });
+    const weak = within.every(w => w.eta2 < t.eta2 / 2);
+    card(t, `${resultBlock(t)}
+      <table><thead><tr><th>À statut égal</th><th class="num">n</th>${LEVELS.map(l => `<th class="num">Médiane ${l}</th>`).join("")}<th class="num">η²</th><th class="num">p</th></tr></thead><tbody>
+      ${within.map(w => `<tr><td>${STATUT[w.s]}</td><td class="num">${nf(w.n)}</td>${w.med.map(m => `<td class="num">${m == null ? "–" : eur(m)}</td>`).join("")}<td class="num">${nf(w.eta2, 3)}</td><td class="num">${pfmt(w.p)}</td></tr>`).join("")}</tbody></table>
+      ${chartBlock("c-t9", `Les EHPAD notés A coûtent ${eur(med[0] - med[3])} de plus par mois que ceux notés D${weak ? ", mais surtout parce qu'ils sont plus souvent privés" : ""}`,
+        `Sources : CNSA et HAS. n = ${LEVELS.map((l, i) => `${l} ${nf(g[i].length)}`).join(", ")}.`)}
+      <p class="reading">Lecture : sur l'ensemble des EHPAD, l'écart de prix entre niveaux est un effet ${t.mag} (η² = ${nf(t.eta2, 3)}).
+        ${weak ? `À statut égal, il fond (η² ≤ ${nf(Math.max(...within.map(w => w.eta2)), 3)}) : ${within.find(w => w.s === "pub").p > 0.05 ? "dans le public, les EHPAD notés A ne coûtent pas plus cher que les autres. " : ""}Le privé commercial, plus cher, est aussi plus souvent noté A (test 3) : c'est surtout le statut qui relie prix et note. Pour une famille : à statut égal, choisir un EHPAD bien noté ne coûte rien de plus dans le public et au plus ${eur(Math.max(...within.filter(w => w.s !== "pub").map(w => Math.max(...w.med.filter(m => m != null)) - Math.min(...w.med.filter(m => m != null)))))} par mois dans le privé.`
+          : "Le lien se maintient à statut égal."}</p>`);
+    boxes("c-t9", g.map((v, i) => ({ values: v, name: `Niveau ${LEVELS[i]}`, key: LEVELS[i] })), lev, "Prix mensuel estimé (€)",
+      { yaxis: { range: [1000, 6000], title: { text: "Prix mensuel estimé (€)" }, gridcolor: css("--grid") } });
+  }
+
+  // Tests 10 et 11 : le personnel selon le statut
+  const personnel = [
+    { id: 10, key: "enc", label: "Taux d'encadrement", unit: "", higherBetter: true, question: "Le taux d'encadrement dépend-il du statut ?" },
+    { id: 11, key: "rot", label: "Turnover du personnel", unit: " %", higherBetter: false, question: "Le turnover du personnel dépend-il du statut ?" },
+  ];
+  for (const v of personnel) {
+    const g = STATUTS.map(s => rows.filter(r => r.st === s && r[v.key] != null).map(r => r[v.key]));
+    const t = register(Object.assign(S.kruskal(g), { id: v.id, question: v.question,
+      y: `${v.label} (quantitatif)`, x: "Statut (qualitatif, 3 groupes)",
+      h0: `même distribution de ${v.label.toLowerCase()} pour les trois statuts`, h1: "au moins un statut diffère (bilatéral)",
+      why: `Y quantitative, X à 3 groupes → ANOVA ; ${v.key === "rot" ? "turnover très asymétrique" : "valeurs extrêmes"} → <b>Kruskal-Wallis</b>, puis comparaisons deux à deux (Mann-Whitney, Bonferroni ×3).`,
+      effectLabel: "η²" }));
+    t.effect = t.eta2; t.mag = S.magnitude("eta2", t.eta2);
+    const med = g.map(S.median);
+    const order = STATUTS.map((s, i) => ({ s, m: med[i] })).sort((a, b) => v.higherBetter ? b.m - a.m : a.m - b.m);
+    const pairs = [[0, 1], [0, 2], [1, 2]].map(([a, b]) => ({ a, b, ...S.mannWhitney(g[b], g[a]) }));
+    const id = `c-t${v.id}`;
+    card(t, `${resultBlock(t)}
+      <table><thead><tr><th>Comparaison deux à deux (Bonferroni ×3)</th><th class="num">Écart des médianes</th><th class="num">r rang-bisérial</th><th class="num">p ajustée</th></tr></thead><tbody>
+      ${pairs.map(c => `<tr><td>${STATUT[STATUTS[c.b]]} vs ${STATUT[STATUTS[c.a]]}</td><td class="num">${sign(med[c.b] - med[c.a])}${v.unit}</td><td class="num">${nf(c.r, 2)}</td><td class="num">${pfmt(Math.min(1, c.p * 3))}</td></tr>`).join("")}
+      </tbody></table>
+      ${chartBlock(id, v.key === "enc"
+          ? `Le ${STATUT[order[0].s].toLowerCase()} est le mieux encadré : ${nf(order[0].m, 1)} soignants et éducatifs (ETP) pour 100 résidents, contre ${nf(order[2].m, 1)} dans le ${STATUT[order[2].s].toLowerCase()}`
+          : `Le personnel tourne le plus dans le ${STATUT[order[2].s].toLowerCase()} : ${nf(order[2].m, 1)} % de turnover médian, contre ${nf(order[0].m, 1)} % dans le ${STATUT[order[0].s].toLowerCase()}`,
+        `Source : annuaire officiel (données 2024). n = ${g.map((a, i) => `${STATUT[STATUTS[i]]} ${nf(a.length)}`).join(", ")}.`)}
+      <p class="reading">Lecture : effet ${t.mag} (η² = ${nf(t.eta2, 3)}) : le statut explique environ ${nf(100 * t.eta2)} % des écarts de ${v.label.toLowerCase()} entre EHPAD.
+        ${v.key === "enc" ? "Rapproché du test 1, le public est à la fois le moins cher et le mieux encadré : le prix payé par la famille ne finance pas les soignants." : "Un turnover élevé signifie des équipes moins stables, un point à aborder lors de la visite."}</p>`);
+    boxes(id, g.map((a, i) => ({ values: a, name: STATUT[STATUTS[i]], key: STATUTS[i] })), col, v.label + (v.unit ? " (%)" : ""),
+      { yaxis: { range: [0, v.key === "enc" ? 100 : 80], title: { text: v.label + (v.unit ? " (%)" : "") }, gridcolor: css("--grid") } });
+  }
+
+  // Test 12 : taille et présence d'un infirmier de nuit
+  {
+    const a = rows.filter(r => r.inf === true && r.places).map(r => r.places), b = rows.filter(r => r.inf === false && r.places).map(r => r.places);
+    const t = register(Object.assign(S.mannWhitney(a, b), { id: 12, question: "Les grands EHPAD ont-ils plus souvent un infirmier de nuit ?",
+      y: "Nombre de places (quantitatif)", x: "Infirmier de nuit oui / non (qualitatif, 2 groupes)",
+      h0: "même distribution de taille avec ou sans infirmier de nuit", h1: "la taille diffère (bilatéral)",
+      why: "Y quantitative, X à 2 groupes → test t ; taille très asymétrique (quelques très grands EHPAD) → <b>Mann-Whitney</b>.",
+      effectLabel: "r rang-bisérial" }));
+    t.effect = t.r; t.mag = S.magnitude("r", t.r);
+    const classes = [[0, 60, "< 60"], [60, 80, "60 à 79"], [80, 100, "80 à 99"], [100, 1e9, "100 et plus"]];
+    const pct = classes.map(([lo, hi]) => { const x = rows.filter(r => r.inf != null && r.places >= lo && r.places < hi); return { n: x.length, p: 100 * x.filter(r => r.inf).length / x.length }; });
+    card(t, `${resultBlock(t)}
+      ${chartBlock("c-t12", `Un infirmier la nuit dans ${nf(pct[0].p)} % des EHPAD de moins de 60 places, contre ${nf(pct[3].p)} % de ceux de 100 places et plus`,
+        `Source : annuaire officiel (2024) et FINESS (places). n = ${pct.map((c, i) => `${classes[i][2]} places : ${nf(c.n)}`).join(", ")}.`)}
+      <p class="reading">Lecture : places médianes ${nf(S.median(a))} avec infirmier de nuit contre ${nf(S.median(b))} sans (effet ${t.mag}, r = ${nf(t.r, 2)}).
+        Un poste d'infirmier de nuit coûte autant pour 50 que pour 120 résidents : les grands établissements l'amortissent plus facilement (économies d'échelle).
+        Attention : la taille est aussi liée au statut (les EHPAD publics hospitaliers sont souvent grands), ce test ne sépare pas les deux effets.</p>`);
+    plot("c-t12", [{ type: "bar", x: classes.map(c => c[2]), y: pct.map(c => c.p), marker: { color: css("--s1") },
+      text: pct.map(c => nf(c.p) + " %"), textposition: "outside", hovertemplate: "%{x} : %{y:.1f} %<extra></extra>" }],
+      { yaxis: { title: { text: "Part des EHPAD avec infirmier de nuit" }, ticksuffix: " %", gridcolor: css("--grid"), rangemode: "tozero" },
+        xaxis: { title: { text: "Places en hébergement permanent" }, tickangle: 0 }, showlegend: false });
+  }
+}
+
+function renderSummary() {
+  tests.sort((a, b) => a.id - b.id);
+  $("tests-intro").innerHTML = `Chaque test suit la même démarche : variables Y et X, H0 et H1 posées avant de regarder les données, test choisi selon le tableau du cours,
+    p-value, taille d'effet. ${M_TESTS} tests sont menés : pour garder un risque global de 5 %, chaque p-value est multipliée par ${M_TESTS} (correction de Bonferroni, seuil ${nf(5 / M_TESTS, 2)} %).`;
+  $("summary").innerHTML = `<table><thead><tr><th>#</th><th>Question</th><th>Test</th><th class="num">p ajustée</th><th>Taille d'effet</th><th>Conclusion</th></tr></thead><tbody>
+    ${tests.map(t => `<tr><td>${t.id}</td><td>${t.question}</td><td>${t.test}</td><td class="num">${pfmt(t.padj)}</td>
+      <td>${t.effectLabel} = ${nf(t.effect, 2)} <span class="pill">${t.mag}</span></td>
+      <td class="verdict ${t.signif ? "yes" : "no"}">${t.signif ? (t.mag === "négligeable" ? "Significatif, effet négligeable" : "Lien établi") : "Pas de preuve"}</td></tr>`).join("")}
+    </tbody></table>`;
+}
+
+// ---------- Section 6 : régression multiple avec effets fixes département ----------
+function renderRegression() {
+  const d = rows.filter(r => r.prix && r.st && r.places && r.enc != null && r.inf != null);
+  const names = ["Privé non lucratif (vs public)", "Privé commercial (vs public)", "Habilité aide sociale", "log(places)", "Encadrement (+10 points)", "Infirmier de nuit"];
+  const X = d.map(r => [r.st === "pnl" ? 1 : 0, r.st === "com" ? 1 : 0, r.hab ? 1 : 0, Math.log(r.places), r.enc / 10, r.inf ? 1 : 0]);
+  const y = d.map(r => Math.log(r.prix));
+  // Effets fixes département : on retire à chaque variable sa moyenne départementale (estimateur « within »)
+  const groups = {};
+  d.forEach((r, i) => (groups[r.dep] ||= []).push(i));
+  const demean = (vals) => { const out = [...vals]; for (const idx of Object.values(groups)) { const m = S.mean(idx.map(i => vals[i])); idx.forEach(i => out[i] = vals[i] - m); } return out; };
+  const yd = demean(y);
+  const cols = names.map((_, j) => demean(X.map(r => r[j])));
+  const Xd = d.map((_, i) => cols.map(c => c[i]));
+  const nDep = Object.keys(groups).length;
+  const fe = S.ols(Xd, yd, names, { intercept: false, absorbedDf: nDep });
+  const simple = S.ols(X, y, names);
+  const pct = b => 100 * (Math.exp(b) - 1);
+  const com = fe.coefs[1], comS = simple.coefs[2];
+  $("reg").innerHTML = `
+    <p><b>Question :</b> à département, taille, habilitation, encadrement et infirmier de nuit égaux, le statut fait-il varier le prix ?
+      <b>Modèle :</b> log(prix) = statut + habilitation + log(places) + encadrement + infirmier de nuit + effet fixe du département (moindres carrés, n = ${nf(fe.n)}, ${nDep} départements).
+      Le logarithme rend la distribution du prix plus symétrique et permet de lire les coefficients en % : effet = e<sup>b</sup> − 1.</p>
+    <div class="scroll"><table><thead><tr><th>Variable</th><th class="num">Effet sur le prix</th><th class="num">IC 95 %</th><th class="num">p</th><th class="num">Sans effet département</th></tr></thead><tbody>
+    ${fe.coefs.map((c, j) => `<tr><td>${c.name}</td><td class="num"><b>${sign(pct(c.b))} %</b></td><td class="num">${sign(pct(c.b - 1.96 * c.se))} à ${sign(pct(c.b + 1.96 * c.se))} %</td><td class="num">${pfmt(c.p)}</td><td class="num">${sign(pct(simple.coefs[j + 1].b))} %</td></tr>`).join("")}
+    </tbody></table></div>
+    <p class="note">R² intra-département = ${nf(fe.r2, 3)} · R² du modèle sans effet département = ${nf(simple.r2, 3)} (ajusté ${nf(simple.adjR2, 3)}). Erreurs-types classiques (non corrigées de la corrélation intra-gestionnaire).</p>
+    ${chartBlock("c-reg", `À caractéristiques égales et dans le même département, le privé commercial coûte ${nf(pct(com.b))} % de plus que le public`,
+      `Effets estimés en % du prix, avec intervalle de confiance à 95 %. n = ${nf(fe.n)} EHPAD complets.`)}
+    <p class="reading">Lecture « toutes choses égales par ailleurs » : sans tenir compte du département, l'écart privé commercial / public est de ${sign(pct(comS.b))} % ; en comparant des EHPAD
+      d'un même département, il est de ${sign(pct(com.b))} %. ${Math.abs(pct(com.b)) < Math.abs(pct(comS.b)) ? "Une partie de l'écart brut vient donc de la localisation (le privé commercial est plus présent dans les départements chers)." : "La localisation n'explique pas l'écart."}
+      Le R² intra-département de ${nf(fe.r2, 2)} rappelle qu'une grande part des écarts de prix tient à des facteurs absents du modèle (immobilier, confort, prestations).</p>`;
+  const cs = fe.coefs;
+  plot("c-reg", [{ type: "scatter", mode: "markers", y: cs.map(c => c.name), x: cs.map(c => pct(c.b)),
+    error_x: { type: "data", symmetric: false, array: cs.map(c => pct(c.b + 1.96 * c.se) - pct(c.b)), arrayminus: cs.map(c => pct(c.b) - pct(c.b - 1.96 * c.se)), color: css("--text-2"), thickness: 1.5, width: 0 },
+    marker: { color: css("--s1"), size: 10, line: { color: css("--surface"), width: 2 } }, hovertemplate: "%{y} : %{x:+.1f} %<extra></extra>" }],
+    { xaxis: { title: { text: "Effet sur le prix (%)" }, ticksuffix: " %", zeroline: true, zerolinewidth: 2, gridcolor: css("--grid") },
+      yaxis: { autorange: "reversed", gridcolor: "rgba(0,0,0,0)" }, margin: { l: 210, r: 16, t: 12, b: 48 }, showlegend: false, height: 340 });
+}
+
+// ---------- Section 8 : distribution des niveaux HAS par département ----------
+function renderDeps() {
+  const byDep = {};
+  for (const r of rows) if (r.q) { const d = (byDep[r.dep] ||= { counts: {}, total: 0 }); d.counts[r.q] = (d.counts[r.q] || 0) + 1; d.total++; }
+  const MIN = 15;
+  const cats = Object.entries(byDep).filter(([, v]) => v.total >= MIN)
+    .map(([dep, v]) => ({ dep, label: depName(dep), ...v, ab: 100 * ((v.counts.A || 0) + (v.counts.B || 0)) / v.total, a: 100 * (v.counts.A || 0) / v.total }))
+    .sort((x, y) => y.a - x.a || y.ab - x.ab);
+  const nat = rows.filter(r => r.q), natA = 100 * nat.filter(r => r.q === "A").length / nat.length;
+  const first = cats[0], last = cats[cats.length - 1];
+  const scores = cats.map(c => c.a), q = [S.quantile(scores, 0.25), S.quantile(scores, 0.75)];
+  $("deps").innerHTML = `
+    <p>Part de chaque niveau parmi les EHPAD évalués, pour les ${cats.length} départements comptant au moins ${MIN} EHPAD évalués
+      (${Object.keys(byDep).length - cats.length} départements écartés : trop peu d'évaluations pour une proportion fiable). Moyenne nationale : ${nf(natA)} % de A.</p>
+    ${chartBlock("c-deps", `La part d'EHPAD notés A va de ${nf(first.a)} % (${first.label}) à ${nf(last.a)} % (${last.label}) ; la moitié des départements sont entre ${nf(q[0])} % et ${nf(q[1])} %`,
+      `Source : HAS, évaluations 2023-2026. Départements triés par part de A. Survolez une barre pour les effectifs.`)}
+    <p class="reading">Lecture : ces écarts mêlent la qualité réelle et le calendrier des évaluations (un département évalué plus tard l'a été avec la cotation 2025)
+      et les différences entre organismes évaluateurs. Analyse descriptive : pas de test, car de nombreux départements ont trop peu d'EHPAD par niveau pour un Khi² valide.</p>`;
+  $("c-deps").style.height = `${Math.max(600, cats.length * 19 + 90)}px`;
+  stackedPct("c-deps", cats, LEVELS, colorLevel(), "Part des EHPAD évalués");
+}
+
+// ---------- Exécution ----------
+try {
+  renderPrep();
+  renderDescription();
+  renderJoin();
+  runTests();
+  runMoreTests();
+  renderSummary();
+  renderRegression();
+  renderDeps();
+  $("loading").remove();
+  $("footer").textContent = `Données : FINESS (extraction du ${new Date(window.EHPAD_DATE).toLocaleDateString("fr-FR")}), CNSA, HAS, INSEE ${window.POP_YEAR}, annuaire pour-les-personnes-agees.gouv.fr. Calculs : stats-lib.js (lois de probabilité : jStat), graphiques : Plotly.`;
+} catch (err) {
+  $("loading").textContent = "Erreur de calcul : " + err.message;
+  console.error(err);
+}
+</script>
+</body>
+</html>

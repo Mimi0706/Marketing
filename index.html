@@ -3,314 +3,994 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Carte des EHPAD</title>
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.min.css">
-<link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/MarkerCluster.Default.min.css">
+<title>Trouver un EHPAD</title>
+<meta name="description" content="Carte des EHPAD de France : prix, qualité HAS, personnel et places, pour choisir un établissement pour un proche.">
 <style>
   :root {
-    --bg: #f6f5f2; --panel: #ffffff; --text: #1f2328; --muted: #5f6670;
-    --border: #e2e0db; --accent: #1d6b5c; --accent-soft: #e3f0ec; --hover: #f1efea;
+    color-scheme: light;
+    --page: #f6f5f2; --surface: #ffffff; --surface-2: #f4f3ef; --text: #1f2328; --text-2: #4f555c; --muted: #6f757c;
+    --border: #e3e1dc; --accent: #1d6b5c; --accent-hover: #155447; --accent-soft: #e3f0ec; --focus: #2a78d6;
+    --land: #e3e1da; --land-hover: #d5d2c9; --land-line: #ffffff; --land-active: #cfe3dc; --frame: #c3c2b7;
+    --p1: #86b6ef; --p2: #3987e5; --p3: #1c5cab; --p4: #0d366b; --none: #b7b5ad;
+    --s1: #2a78d6; --s2: #eb6834; --s3: #1baf7a;
+    --good: #0a7a32; --bad: #b4532a; --star: #d99a00;
+    --shadow: 0 1px 2px rgba(0,0,0,.06), 0 4px 16px rgba(0,0,0,.06);
   }
   @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #16181b; --panel: #1e2125; --text: #e8e6e3; --muted: #9aa0a6;
-      --border: #30343a; --accent: #4fb39d; --accent-soft: #1d3530; --hover: #272b30;
+    :root:where(:not([data-theme="light"])) {
+      color-scheme: dark;
+      --page: #121315; --surface: #1b1d20; --surface-2: #23262a; --text: #ecebe8; --text-2: #c0c3c7; --muted: #8f949a;
+      --border: #30343a; --accent: #4fb39d; --accent-hover: #6cc6b2; --accent-soft: #1d3530; --focus: #6da7ec;
+      --land: #2c3035; --land-hover: #3a3f45; --land-line: #121315; --land-active: #24433b; --frame: #45494f;
+      --p1: #9ec5f4; --p2: #5598e7; --p3: #2a78d6; --p4: #184f95; --none: #6b6f75;
+      --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+      --good: #3fc06a; --bad: #ec835a; --star: #f0b429;
+      --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.35);
     }
   }
-  * { box-sizing: border-box; }
-  html, body { margin: 0; height: 100%; }
-  body {
-    font: 15px/1.45 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-    background: var(--bg); color: var(--text);
-    display: grid; grid-template-columns: 360px 1fr; grid-template-rows: 100vh;
+  :root[data-theme="dark"] {
+    color-scheme: dark;
+    --page: #121315; --surface: #1b1d20; --surface-2: #23262a; --text: #ecebe8; --text-2: #c0c3c7; --muted: #8f949a;
+    --border: #30343a; --accent: #4fb39d; --accent-hover: #6cc6b2; --accent-soft: #1d3530; --focus: #6da7ec;
+    --land: #2c3035; --land-hover: #3a3f45; --land-line: #121315; --land-active: #24433b; --frame: #45494f;
+    --p1: #9ec5f4; --p2: #5598e7; --p3: #2a78d6; --p4: #184f95; --none: #6b6f75;
+    --s1: #3987e5; --s2: #d95926; --s3: #199e70;
+    --good: #3fc06a; --bad: #ec835a; --star: #f0b429;
+    --shadow: 0 1px 2px rgba(0,0,0,.4), 0 4px 16px rgba(0,0,0,.35);
   }
-  aside {
-    background: var(--panel); border-right: 1px solid var(--border);
-    display: flex; flex-direction: column; min-height: 0;
-  }
-  header { padding: 20px 20px 12px; }
-  h1 { font-size: 20px; margin: 0 0 4px; letter-spacing: -0.01em; }
-  .sub { color: var(--muted); font-size: 13px; margin: 0; }
-  .filters { padding: 0 20px 14px; display: grid; gap: 10px; border-bottom: 1px solid var(--border); }
-  input[type=search], select {
-    width: 100%; padding: 9px 11px; font: inherit; color: var(--text);
-    background: var(--bg); border: 1px solid var(--border); border-radius: 8px;
-  }
-  input[type=search]:focus, select:focus { outline: 2px solid var(--accent); outline-offset: -1px; }
-  label.check { display: flex; gap: 8px; align-items: center; font-size: 14px; cursor: pointer; }
-  .count { font-size: 13px; color: var(--muted); }
-  .count b { color: var(--accent); font-size: 15px; }
-  #list { list-style: none; margin: 0; padding: 0; overflow-y: auto; flex: 1; }
-  #list li { padding: 11px 20px; border-bottom: 1px solid var(--border); cursor: pointer; }
-  #list li:hover, #list li:focus { background: var(--hover); outline: none; }
-  #list .name { font-weight: 600; font-size: 14px; }
-  #list .city { color: var(--muted); font-size: 13px; }
-  #list .more { color: var(--muted); font-size: 13px; text-align: center; cursor: default; }
-  footer { padding: 10px 20px; font-size: 12px; color: var(--muted); border-top: 1px solid var(--border); }
-  footer a { color: var(--accent); }
-  #map { height: 100%; width: 100%; background: var(--bg); }
-  .leaflet-popup-content { font-size: 14px; line-height: 1.45; margin: 12px 14px; }
-  .popup-name { font-weight: 700; font-size: 15px; margin-bottom: 4px; }
-  .tag { display: inline-block; font-size: 12px; padding: 2px 8px; border-radius: 99px;
-         background: #e3f0ec; color: #1d6b5c; margin-top: 6px; }
-  .tag.no { background: #f3ece2; color: #8a5a1c; }
-  .popup-links a { margin-right: 10px; }
-  .cap { display: flex; gap: 6px; margin-top: 8px; }
-  .cap div { flex: 1; text-align: center; background: #f4f3ef; border-radius: 6px; padding: 5px 4px; }
-  .cap b { display: block; font-size: 17px; color: #1d6b5c; line-height: 1.2; }
-  .cap span { font-size: 11px; color: #666; }
-  .cap-note { font-size: 12px; color: #777; margin-top: 4px; }
-  #list .city .places { float: right; color: var(--accent); font-weight: 600; }
-  #list .price { font-size: 13px; color: var(--text); margin-top: 1px; }
-  .row { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; }
-  .prices { margin-top: 10px; border-top: 1px solid #e5e3de; padding-top: 8px; }
-  .prices .big { font-size: 18px; font-weight: 700; color: #1d6b5c; }
-  .prices table { width: 100%; border-collapse: collapse; font-size: 13px; margin-top: 4px; }
-  .prices td { padding: 2px 0; }
-  .prices td:last-child { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
-  .prices .sub td { color: #777; font-size: 12px; }
-  .prices td[colspan] { text-align: left; padding-top: 6px; }
-  .section { margin-top: 10px; border-top: 1px solid #e5e3de; padding-top: 8px; }
-  .section h4 { margin: 0 0 4px; font-size: 13px; text-transform: uppercase; letter-spacing: .04em; color: #555; }
-  .statut { font-size: 13px; }
-  .statut b { font-weight: 600; }
-  .lvl { display: inline-grid; place-items: center; width: 22px; height: 22px; border-radius: 5px;
-         font-weight: 700; font-size: 13px; color: #fff; vertical-align: middle; }
-  .lvl-A { background: #1b7f4c; } .lvl-B { background: #5c9e3c; } .lvl-C { background: #d08a1e; } .lvl-D { background: #c0392b; }
-  .q-head { display: flex; align-items: center; gap: 8px; font-size: 14px; }
-  .q-head .lvl { width: 30px; height: 30px; font-size: 17px; }
-  .themes { margin-top: 6px; font-size: 12px; }
-  .themes summary { cursor: pointer; color: #1d6b5c; }
-  .th { display: grid; grid-template-columns: 1fr 70px 28px; gap: 6px; align-items: center; margin-top: 3px; }
-  .bar { height: 6px; background: #eceae4; border-radius: 3px; overflow: hidden; }
-  .bar i { display: block; height: 100%; background: #1d6b5c; }
-  .th span:last-child { text-align: right; font-variant-numeric: tabular-nums; color: #555; }
-  #list .lvl { width: 18px; height: 18px; font-size: 11px; margin-right: 6px; }
-  .leaflet-popup-content { max-width: 300px; }
-  #toggle { display: none; }
 
-  @media (max-width: 760px) {
-    body { grid-template-columns: 1fr; grid-template-rows: auto 1fr; height: 100dvh; }
-    aside { border-right: 0; border-bottom: 1px solid var(--border); max-height: 55dvh; }
-    header { padding: 14px 16px 8px; }
-    .filters { padding: 0 16px 10px; }
-    #list li, footer { padding-left: 16px; padding-right: 16px; }
-    aside.collapsed #list, aside.collapsed footer { display: none; }
-    #toggle { display: inline; background: none; border: 0; color: var(--accent); font: inherit; font-size: 13px; padding: 0; cursor: pointer; }
-    .count { display: flex; justify-content: space-between; }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  html, body { margin: 0; height: 100%; }
+  body { background: var(--page); color: var(--text); font: 15px/1.5 system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         display: grid; grid-template-rows: auto 1fr; height: 100dvh; overflow: hidden; }
+  a { color: var(--accent); }
+  button, input, select { font: inherit; color: inherit; }
+  :focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; }
+  .sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+
+  /* ---------- En-tête ---------- */
+  .topbar { display: flex; align-items: center; gap: 16px; padding: 10px 20px; background: var(--surface); border-bottom: 1px solid var(--border); }
+  .brand { display: flex; align-items: center; gap: 10px; margin-right: auto; text-decoration: none; color: var(--text); }
+  .brand-mark { width: 32px; height: 32px; border-radius: 9px; background: var(--accent); display: grid; place-items: center; color: #fff; }
+  .brand b { font-size: 17px; display: block; line-height: 1.15; }
+  .brand small { color: var(--muted); font-size: 12.5px; }
+  .topnav { display: flex; gap: 6px; }
+  .btn { display: inline-flex; align-items: center; gap: 6px; min-height: 38px; padding: 7px 14px; border-radius: 9px; border: 1px solid var(--border);
+         background: var(--surface); cursor: pointer; text-decoration: none; color: var(--text); font-size: 14px; white-space: nowrap; }
+  .btn:hover { background: var(--surface-2); }
+  .btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  .btn.primary:hover { background: var(--accent-hover); }
+  .btn.ghost { border-color: transparent; background: transparent; }
+  .btn .count { background: var(--accent); color: #fff; border-radius: 99px; font-size: 12px; padding: 0 7px; min-width: 20px; text-align: center; }
+  .btn svg { flex: none; }
+
+  /* ---------- Mise en page ---------- */
+  .app { display: grid; grid-template-columns: 420px 1fr; min-height: 0; }
+  .panel { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; }
+  .panel-scroll { overflow-y: auto; flex: 1; min-height: 0; }
+
+  /* ---------- Recherche et filtres ---------- */
+  .search { padding: 16px 18px 10px; border-bottom: 1px solid var(--border); background: var(--surface); }
+  .field { position: relative; }
+  .field svg { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--muted); pointer-events: none; }
+  .input { width: 100%; height: 44px; padding: 0 40px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface-2); }
+  .input:focus { background: var(--surface); }
+  .clear { position: absolute; right: 6px; top: 50%; transform: translateY(-50%); border: 0; background: none; width: 32px; height: 32px; border-radius: 8px; cursor: pointer; color: var(--muted); }
+  .clear:hover { background: var(--surface-2); }
+  .row2 { display: grid; grid-template-columns: 1fr 1fr; gap: 8px; margin-top: 8px; }
+  .select { width: 100%; height: 40px; padding: 0 10px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface); }
+  .price-range { border: 0; padding: 0; margin: 10px 0 0; min-width: 0; }
+  .price-range legend { display: flex; align-items: center; gap: 6px; padding: 0; margin-bottom: 5px; font-size: 13px; font-weight: 600; color: var(--text-2); }
+  .range-row { display: grid; grid-template-columns: 1fr auto 1fr; gap: 8px; align-items: center; }
+  .dash { color: var(--muted); }
+  .money { position: relative; display: block; }
+  .money span { position: absolute; top: 50%; transform: translateY(-50%); font-size: 12.5px; color: var(--muted); pointer-events: none; }
+  .money span:first-child { left: 11px; }
+  .money .unit { right: 11px; }
+  .money input { width: 100%; height: 40px; padding: 0 26px 0 44px; border: 1px solid var(--border); border-radius: 10px; background: var(--surface);
+                 font-variant-numeric: tabular-nums; -moz-appearance: textfield; appearance: textfield; }
+  .money input::-webkit-inner-spin-button, .money input::-webkit-outer-spin-button { -webkit-appearance: none; margin: 0; }
+  .money input[aria-invalid="true"] { border-color: var(--bad); }
+  .field-error { color: var(--bad); font-size: 12.5px; margin: 5px 0 0; }
+  .more-toggle { margin-top: 8px; width: 100%; justify-content: space-between; }
+  .more { display: none; padding: 4px 0 2px; }
+  .more.open { display: block; }
+  .group { margin-top: 12px; }
+  .group-title { font-size: 12.5px; font-weight: 600; color: var(--text-2); text-transform: uppercase; letter-spacing: .04em; margin-bottom: 6px; }
+  .seg { display: flex; flex-wrap: wrap; gap: 6px; }
+  .toggle { border: 1px solid var(--border); background: var(--surface); border-radius: 99px; padding: 5px 12px; font-size: 13.5px; cursor: pointer; min-height: 34px; }
+  .toggle[aria-pressed="true"] { background: var(--accent-soft); border-color: var(--accent); color: var(--accent); font-weight: 600; }
+  .checks { display: grid; gap: 4px; }
+  .check { display: flex; align-items: center; gap: 10px; padding: 5px 2px; cursor: pointer; font-size: 14px; }
+  .check input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+  .chips { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 18px 0; }
+  .chip { display: inline-flex; align-items: center; gap: 4px; background: var(--accent-soft); color: var(--accent); border: 0; border-radius: 99px; padding: 4px 6px 4px 11px; font-size: 13px; cursor: pointer; }
+  .chip span { font-size: 15px; line-height: 1; padding: 0 3px; }
+  .chip.clear-all { background: none; color: var(--text-2); text-decoration: underline; padding-left: 4px; }
+
+  .results-head { display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 12px 18px 8px; }
+  .results-head .n { font-size: 14px; color: var(--text-2); }
+  .results-head .n b { color: var(--text); font-size: 18px; }
+  .results-head select { width: auto; height: 34px; font-size: 13.5px; }
+
+  /* ---------- Cartes de résultats ---------- */
+  .list { list-style: none; margin: 0; padding: 0 12px 16px; display: grid; gap: 8px; }
+  .item { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 12px 12px 12px 14px; cursor: pointer; position: relative; transition: border-color .12s, box-shadow .12s; }
+  .item:hover, .item.hover { border-color: var(--accent); box-shadow: var(--shadow); }
+  .item h3 { font-size: 15px; margin: 0 34px 2px 0; line-height: 1.3; }
+  .item .where { font-size: 13px; color: var(--muted); }
+  .facts { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 8px; font-size: 13px; color: var(--text-2); }
+  .price-big { font-size: 17px; font-weight: 700; color: var(--text); font-variant-numeric: tabular-nums; }
+  .price-big small { font-size: 12.5px; font-weight: 500; color: var(--muted); }
+  .badge { display: inline-flex; align-items: center; gap: 5px; font-size: 12.5px; border-radius: 6px; padding: 2px 7px; background: var(--surface-2); color: var(--text-2); white-space: nowrap; }
+  .lvl { display: inline-grid; place-items: center; width: 20px; height: 20px; border-radius: 5px; font-weight: 700; font-size: 12px; color: #fff; }
+  .lvl-A { background: #0d366b; } .lvl-B { background: #1c5cab; } .lvl-C { background: #3987e5; } .lvl-D { background: #86b6ef; color: #0d366b; }
+  .dot { width: 9px; height: 9px; border-radius: 50%; display: inline-block; }
+  .star { position: absolute; top: 8px; right: 8px; width: 34px; height: 34px; border-radius: 8px; border: 0; background: none; cursor: pointer; color: var(--muted); display: grid; place-items: center; }
+  .star:hover { background: var(--surface-2); }
+  .star[aria-pressed="true"] { color: var(--star); }
+  .star[aria-pressed="true"] svg { fill: currentColor; }
+  .load-more { margin: 4px 12px 20px; width: calc(100% - 24px); justify-content: center; }
+  .empty { text-align: center; padding: 28px 22px; color: var(--text-2); }
+  .empty b { display: block; color: var(--text); font-size: 16px; margin-bottom: 4px; }
+  .empty .btn { margin: 10px 4px 0; }
+
+  .guide { margin: 0 12px 10px; padding: 14px 16px; background: var(--accent-soft); border-radius: 12px; font-size: 14px; position: relative; }
+  .guide ol { margin: 6px 0 0; padding-left: 20px; }
+  .guide li { margin: 2px 0; }
+  .guide .close { position: absolute; top: 6px; right: 6px; }
+
+  /* ---------- Fiche détaillée ---------- */
+  .detail { padding: 14px 18px 28px; }
+  .back { margin-left: -8px; }
+  .detail h2 { font-size: 21px; line-height: 1.25; margin: 8px 0 4px; }
+  .detail .addr { color: var(--text-2); font-size: 14px; margin: 0; }
+  .detail .who { font-size: 13.5px; color: var(--muted); margin: 4px 0 0; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin: 14px 0 4px; }
+  .kpis { display: grid; grid-template-columns: repeat(2, 1fr); gap: 8px; margin: 14px 0 6px; }
+  .kpi { background: var(--surface-2); border-radius: 10px; padding: 10px 12px; }
+  .kpi .k { font-size: 12px; color: var(--muted); display: flex; align-items: center; gap: 4px; }
+  .kpi .v { font-size: 18px; font-weight: 700; margin-top: 2px; display: flex; align-items: center; gap: 6px; }
+  .kpi .s { font-size: 12px; color: var(--text-2); }
+  .sec { border-top: 1px solid var(--border); margin-top: 16px; padding-top: 12px; }
+  .sec h3 { font-size: 15px; margin: 0 0 8px; display: flex; align-items: center; gap: 6px; }
+  .kv { width: 100%; border-collapse: collapse; font-size: 14px; }
+  .kv td { padding: 6px 0; border-bottom: 1px solid var(--border); vertical-align: top; }
+  .kv tr:last-child td { border-bottom: 0; }
+  .kv td:last-child { text-align: right; padding-left: 12px; font-variant-numeric: tabular-nums; }
+  .kv .sub td { color: var(--text-2); font-size: 13px; }
+  .note { font-size: 12.5px; color: var(--muted); margin: 6px 0 0; }
+  .cmp { display: block; font-size: 12px; color: var(--muted); }
+  .cmp.good { color: var(--good); } .cmp.bad { color: var(--bad); }
+  .themes summary { cursor: pointer; color: var(--accent); font-size: 13.5px; margin-top: 8px; }
+  .th { display: grid; grid-template-columns: 1fr 80px 30px; gap: 8px; align-items: center; font-size: 13px; margin-top: 5px; }
+  .bar { height: 7px; background: var(--surface-2); border-radius: 4px; overflow: hidden; }
+  .bar i { display: block; height: 100%; background: var(--accent); border-radius: 4px; }
+  .th span:last-child { text-align: right; color: var(--text-2); font-variant-numeric: tabular-nums; }
+  .tags { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 8px; }
+  .tip { display: inline-grid; place-items: center; width: 17px; height: 17px; border-radius: 50%; border: 1px solid var(--muted); color: var(--muted);
+         font-size: 11px; font-weight: 700; cursor: help; position: relative; flex: none; }
+  .tip:hover::after, .tip:focus::after { content: attr(data-tip); position: absolute; z-index: 30; left: 50%; top: calc(100% + 6px); transform: translateX(-50%);
+         width: 240px; padding: 8px 10px; border-radius: 8px; background: var(--text); color: var(--surface); font: 400 12.5px/1.45 system-ui, sans-serif; text-transform: none; letter-spacing: 0; box-shadow: var(--shadow); }
+
+  /* ---------- Carte ---------- */
+  .mapwrap { position: relative; min-width: 0; min-height: 0; background: var(--page); }
+  #map { width: 100%; height: 100%; display: block; touch-action: none; }
+  .dep { fill: var(--land); stroke: var(--land-line); stroke-width: 1; vector-effect: non-scaling-stroke; cursor: pointer; transition: fill .12s; }
+  .dep:hover { fill: var(--land-hover); }
+  .dep.active { fill: var(--land-active); stroke: var(--accent); stroke-width: 2; }
+  .frame { fill: none; stroke: var(--frame); stroke-width: 1; vector-effect: non-scaling-stroke; }
+  .pt { r: var(--r, 2.4px); stroke: var(--surface); stroke-width: .6; vector-effect: non-scaling-stroke; cursor: pointer; }
+  .pt.hl { r: calc(var(--r, 2.4px) * 1.7); stroke: var(--text); stroke-width: 1.5; }
+  .pt.sel { r: calc(var(--r, 2.4px) * 1.9); stroke: var(--text); stroke-width: 2; }
+  .city circle { fill: var(--text); }
+  .city text, .deplabel { font: 600 11px system-ui, sans-serif; fill: var(--text-2); paint-order: stroke; stroke: var(--page); stroke-width: 3px; pointer-events: none; }
+  .deplabel { font-weight: 500; fill: var(--muted); }
+  .inset-label { font: 600 11px system-ui, sans-serif; fill: var(--text-2); }
+  .map-ui { position: absolute; display: flex; gap: 6px; }
+  .zoom { top: 14px; right: 14px; flex-direction: column; }
+  .zoom button { width: 38px; height: 38px; border-radius: 9px; border: 1px solid var(--border); background: var(--surface); cursor: pointer; box-shadow: var(--shadow); font-size: 18px; display: grid; place-items: center; }
+  .zoom button:hover { background: var(--surface-2); }
+  .legend { right: 14px; bottom: 14px; flex-direction: column; background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 10px 12px; box-shadow: var(--shadow); font-size: 13px; max-width: calc(100% - 28px); }
+  .legend .seg .toggle { padding: 3px 10px; min-height: 30px; font-size: 12.5px; }
+  .legend ul { list-style: none; margin: 6px 0 0; padding: 0; display: grid; gap: 3px; }
+  .legend li { display: flex; align-items: center; gap: 8px; }
+  .legend li .n { color: var(--muted); margin-left: auto; padding-left: 10px; font-variant-numeric: tabular-nums; }
+  .hint { top: 14px; left: 14px; background: var(--surface); border: 1px solid var(--border); border-radius: 99px; padding: 6px 12px; font-size: 13px; color: var(--text-2); box-shadow: var(--shadow); }
+  .tooltip { position: absolute; pointer-events: none; z-index: 20; background: var(--surface); border: 1px solid var(--border); border-radius: 10px; padding: 8px 10px;
+             box-shadow: var(--shadow); font-size: 13px; max-width: 260px; opacity: 0; transition: opacity .08s; }
+  .tooltip b { display: block; font-size: 13.5px; }
+  .view-switch { display: none; }
+
+  /* ---------- Comparaison ---------- */
+  dialog { border: 0; border-radius: 14px; padding: 0; width: min(1000px, calc(100vw - 32px)); max-height: calc(100dvh - 40px); background: var(--surface); color: var(--text); box-shadow: var(--shadow); }
+  dialog::backdrop { background: rgba(0,0,0,.4); }
+  .dlg-head { display: flex; align-items: center; justify-content: space-between; padding: 14px 18px; border-bottom: 1px solid var(--border); position: sticky; top: 0; background: var(--surface); }
+  .dlg-head h2 { font-size: 18px; margin: 0; }
+  .dlg-body { padding: 14px 18px 20px; overflow: auto; }
+  .cmp-table { border-collapse: collapse; width: 100%; font-size: 14px; }
+  .cmp-table th, .cmp-table td { padding: 8px 10px; border-bottom: 1px solid var(--border); text-align: left; vertical-align: top; min-width: 150px; }
+  .cmp-table th[scope="row"] { color: var(--text-2); font-weight: 500; min-width: 170px; position: sticky; left: 0; background: var(--surface); }
+  .cmp-table thead th { font-size: 15px; }
+  .cmp-table td.best { background: var(--accent-soft); font-weight: 600; }
+  .about p, .about li { font-size: 14px; }
+
+  /* ---------- Mobile ---------- */
+  @media (max-width: 860px) {
+    .topbar { padding: 8px 12px; gap: 8px; }
+    .brand small, .topnav .label { display: none; }
+    .app { grid-template-columns: 1fr; }
+    .panel { border-right: 0; }
+    .mapwrap { display: none; }
+    body[data-view="map"] .mapwrap { display: block; }
+    body[data-view="map"] .panel { display: none; }
+    .view-switch { display: inline-flex; position: fixed; bottom: 16px; left: 50%; transform: translateX(-50%); z-index: 40; box-shadow: var(--shadow); }
+    .search { padding: 12px 12px 8px; }
+    .chips, .results-head { padding-left: 12px; padding-right: 12px; }
+    .list { padding: 0 8px 80px; }
+    .legend { top: 12px; right: 64px; bottom: auto; }
+    .legend ul { display: none; }
+    .hint { display: none; }
   }
 </style>
 </head>
-<body>
-<aside id="panel" class="collapsed">
-  <header>
-    <h1>Les EHPAD de France</h1>
-    <p class="sub">Établissements d'hébergement pour personnes âgées dépendantes</p>
-  </header>
-  <div class="filters">
-    <input id="q" type="search" placeholder="Nom, ville ou code postal…" autocomplete="off" aria-label="Rechercher">
-    <select id="dep" aria-label="Département"><option value="">Tous les départements</option></select>
-    <div class="row">
-      <select id="budget" aria-label="Budget mensuel">
-        <option value="">Tout budget</option>
-        <option value="2000">≤ 2 000 €/mois</option>
-        <option value="2500">≤ 2 500 €/mois</option>
-        <option value="3000">≤ 3 000 €/mois</option>
-        <option value="3500">≤ 3 500 €/mois</option>
-        <option value="4000">≤ 4 000 €/mois</option>
-      </select>
-      <select id="sort" aria-label="Trier par">
-        <option value="ville">Tri : ville</option>
-        <option value="prix">Tri : prix croissant</option>
-        <option value="places">Tri : nombre de places</option>
-        <option value="qualite">Tri : qualité HAS</option>
-      </select>
-    </div>
-    <div class="row">
-      <select id="statut" aria-label="Statut">
-        <option value="">Tout statut</option>
-        <option value="pub">Public</option>
-        <option value="pnl">Privé non lucratif</option>
-        <option value="com">Privé commercial</option>
-      </select>
-      <select id="qualite" aria-label="Qualité HAS">
-        <option value="">Toute qualité</option>
-        <option value="A">Qualité HAS : A</option>
-        <option value="AB">Qualité HAS : A ou B</option>
-        <option value="eval">Évalués par la HAS</option>
-      </select>
-    </div>
-    <label class="check"><input id="hab" type="checkbox"> Habilités à l'aide sociale uniquement</label>
-    <label class="check"><input id="tmp" type="checkbox"> Avec hébergement temporaire</label>
-    <label class="check"><input id="jour" type="checkbox"> Avec accueil de jour</label>
-    <div class="count"><span><b id="n">0</b> EHPAD affichés</span><button id="toggle" type="button">Voir la liste</button></div>
-  </div>
-  <ul id="list"></ul>
-  <footer>Source : <a href="https://www.data.gouv.fr/fr/datasets/finess-extraction-du-fichier-des-etablissements/" target="_blank" rel="noopener">FINESS</a> (extraction du <span id="date"></span>) et <a href="https://www.data.gouv.fr/fr/datasets/prix-hebergement-et-tarifs-dependance-des-ehpad-donnees-brutes/" target="_blank" rel="noopener">prix CNSA</a>, <a href="https://www.data.gouv.fr/fr/datasets/resultats-devaluation-des-etablissements-et-services-sociaux-et-medico-sociaux-essms/" target="_blank" rel="noopener">évaluations HAS</a>, data.gouv.fr</footer>
-</aside>
-<div id="map"></div>
+<body data-view="list">
+<header class="topbar">
+  <a class="brand" href="index.html" aria-label="Trouver un EHPAD, accueil">
+    <span class="brand-mark" aria-hidden="true"><svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 11.5 12 4l9 7.5"/><path d="M5.5 10v9.5h13V10"/><path d="M10 19.5v-5h4v5"/></svg></span>
+    <span><b>Trouver un EHPAD</b><small>Prix, qualité et personnel des 7 400 EHPAD de France</small></span>
+  </a>
+  <nav class="topnav" aria-label="Navigation principale">
+    <button class="btn" id="open-compare" type="button" aria-haspopup="dialog">
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>
+      <span class="label">Ma sélection</span><span class="count" id="sel-count">0</span>
+    </button>
+    <a class="btn ghost" href="stats.html"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 20V10M10 20V4M16 20v-7M22 20H2"/></svg><span class="label">Statistiques</span></a>
+    <button class="btn ghost" id="open-about" type="button" aria-haspopup="dialog"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg><span class="label">Les données</span></button>
+  </nav>
+</header>
 
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet/1.9.4/leaflet.min.js"></script>
-<script src="https://cdnjs.cloudflare.com/ajax/libs/leaflet.markercluster/1.5.3/leaflet.markercluster.min.js"></script>
+<main class="app">
+  <aside class="panel" aria-label="Recherche et résultats">
+    <div class="search" id="search-zone">
+      <div class="field">
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><path d="m20 20-3.5-3.5"/></svg>
+        <label class="sr-only" for="q">Rechercher un EHPAD</label>
+        <input class="input" id="q" type="search" placeholder="Ville, code postal ou nom" autocomplete="off">
+        <button class="clear" id="q-clear" type="button" aria-label="Effacer la recherche" hidden>✕</button>
+      </div>
+      <div style="margin-top:8px"><label class="sr-only" for="dep">Département</label><select class="select" id="dep"><option value="">Toute la France</option></select></div>
+      <fieldset class="price-range">
+        <legend>Budget par mois <span class="tip" tabindex="0" data-tip="Prix estimé : chambre seule + tarif dépendance GIR 5-6, sur 30 jours. Les EHPAD qui n'ont pas communiqué leurs prix sont masqués dès qu'un budget est saisi.">?</span></legend>
+        <div class="range-row">
+          <label class="money"><span>Min</span><input id="pmin" type="number" inputmode="numeric" min="0" step="100" autocomplete="off" aria-describedby="price-error"><span class="unit">€</span></label>
+          <span aria-hidden="true" class="dash">–</span>
+          <label class="money"><span>Max</span><input id="pmax" type="number" inputmode="numeric" min="0" step="100" autocomplete="off" aria-describedby="price-error"><span class="unit">€</span></label>
+        </div>
+        <p class="field-error" id="price-error" role="alert" hidden>Le minimum doit être inférieur au maximum.</p>
+      </fieldset>
+      <button class="btn more-toggle" id="more-toggle" type="button" aria-expanded="false" aria-controls="more">
+        <span>Plus de filtres <span id="more-count"></span></span>
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+      </button>
+      <div class="more" id="more">
+        <div class="group" role="group" aria-labelledby="g-qual">
+          <div class="group-title" id="g-qual">Qualité (évaluation HAS) <span class="tip" tabindex="0" data-tip="Tous les 5 ans, un organisme indépendant évalue chaque EHPAD pour la Haute Autorité de santé. A = démarche qualité avancée, B = structurée, C = partielle, D = insuffisante.">?</span></div>
+          <div class="seg" data-filter="qual">
+            <button class="toggle" type="button" data-value="" aria-pressed="true">Toutes</button>
+            <button class="toggle" type="button" data-value="A" aria-pressed="false">A uniquement</button>
+            <button class="toggle" type="button" data-value="AB" aria-pressed="false">A ou B</button>
+          </div>
+        </div>
+        <div class="group" role="group" aria-labelledby="g-st">
+          <div class="group-title" id="g-st">Statut</div>
+          <div class="seg" data-filter="statut" data-multi>
+            <button class="toggle" type="button" data-value="pub" aria-pressed="false">Public</button>
+            <button class="toggle" type="button" data-value="pnl" aria-pressed="false">Privé non lucratif</button>
+            <button class="toggle" type="button" data-value="com" aria-pressed="false">Privé commercial</button>
+          </div>
+        </div>
+        <div class="group" role="group" aria-labelledby="g-need">
+          <div class="group-title" id="g-need">Besoins de votre proche</div>
+          <div class="checks" id="needs"></div>
+        </div>
+      </div>
+    </div>
+
+    <div class="panel-scroll" id="scroll">
+      <div id="results-view">
+        <div class="chips" id="chips"></div>
+        <div class="results-head">
+          <div class="n" aria-live="polite"><b id="n">0</b> <span id="n-label">EHPAD</span></div>
+          <div><label class="sr-only" for="sort">Trier par</label>
+            <select class="select" id="sort">
+              <option value="prix">Prix croissant</option>
+              <option value="qualite">Meilleure note HAS</option>
+              <option value="places">Plus grande capacité</option>
+              <option value="nom">Nom (A → Z)</option>
+            </select></div>
+        </div>
+        <div id="guide-slot"></div>
+        <ul class="list" id="list"></ul>
+        <button class="btn load-more" id="load-more" type="button" hidden></button>
+      </div>
+      <div class="detail" id="detail" hidden></div>
+    </div>
+  </aside>
+
+  <section class="mapwrap" id="mapwrap" aria-label="Carte des EHPAD">
+    <svg id="map" role="img" aria-label="Carte schématique de la France avec les EHPAD affichés"></svg>
+    <div class="map-ui hint" id="hint">Cliquez sur un département pour zoomer</div>
+    <div class="map-ui zoom" role="group" aria-label="Zoom">
+      <button type="button" id="zoom-in" aria-label="Zoomer">+</button>
+      <button type="button" id="zoom-out" aria-label="Dézoomer">−</button>
+      <button type="button" id="zoom-reset" aria-label="Revenir à la France entière" title="France entière">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M4 9V4h5M20 9V4h-5M4 15v5h5M20 15v5h-5"/></svg></button>
+    </div>
+    <div class="map-ui legend" id="legend">
+      <div class="seg" data-filter="color" role="group" aria-label="Couleur des points">
+        <button class="toggle" type="button" data-value="prix" aria-pressed="true">Prix</button>
+        <button class="toggle" type="button" data-value="qualite" aria-pressed="false">Note HAS</button>
+        <button class="toggle" type="button" data-value="statut" aria-pressed="false">Statut</button>
+      </div>
+      <ul id="legend-items"></ul>
+    </div>
+    <div class="tooltip" id="tooltip" role="status"></div>
+  </section>
+</main>
+
+<button class="btn primary view-switch" id="view-switch" type="button">
+  <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 4 3 6v14l6-2 6 2 6-2V4l-6 2z"/><path d="M9 4v14M15 6v14"/></svg>
+  <span>Voir la carte</span>
+</button>
+
+<dialog id="compare" aria-labelledby="compare-title">
+  <div class="dlg-head"><h2 id="compare-title">Ma sélection</h2><button class="btn ghost" type="button" data-close aria-label="Fermer">✕</button></div>
+  <div class="dlg-body" id="compare-body"></div>
+</dialog>
+
+<dialog id="about" aria-labelledby="about-title">
+  <div class="dlg-head"><h2 id="about-title">D'où viennent les données ?</h2><button class="btn ghost" type="button" data-close aria-label="Fermer">✕</button></div>
+  <div class="dlg-body about">
+    <p>Toutes les informations viennent de sources publiques officielles, sous Licence Ouverte :</p>
+    <ul>
+      <li><b>Adresses, capacités, statut</b> : répertoire FINESS du ministère de la Santé (extraction du <span id="date"></span>).</li>
+      <li><b>Prix</b> : déclarations des EHPAD à la CNSA. Le prix mensuel affiché est une estimation : (prix de la chambre seule + tarif dépendance GIR 5-6) × 30 jours.</li>
+      <li><b>Qualité</b> : évaluations de la Haute Autorité de santé (HAS), réalisées tous les 5 ans.</li>
+      <li><b>Personnel et soins</b> : indicateurs 2024 déclarés par les EHPAD, publiés sur l'annuaire officiel pour-les-personnes-agees.gouv.fr.</li>
+      <li><b>Dépendance moyenne (GMP)</b> : CNSA, par département.</li>
+      <li><b>Contours des départements</b> : france-geojson (d'après IGN / Etalab).</li>
+    </ul>
+    <p><b>Limites :</b> les places affichées sont la capacité totale, pas les places libres (aucune donnée publique ne les donne). Prix et indicateurs de personnel sont déclaratifs.
+      Pour une demande d'admission, utilisez <a href="https://trajectoire.sante-ra.fr/" target="_blank" rel="noopener">ViaTrajectoire</a> et visitez toujours l'établissement.</p>
+    <p><a href="stats.html">Voir l'analyse statistique des données →</a></p>
+  </div>
+</dialog>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.9.0/d3.min.js"></script>
+<script src="deps.js"></script>
+<script src="departements.js"></script>
 <script src="ehpad.js"></script>
 <script>
-const DEPS = {"01":"Ain","02":"Aisne","03":"Allier","04":"Alpes-de-Haute-Provence","05":"Hautes-Alpes","06":"Alpes-Maritimes","07":"Ardèche","08":"Ardennes","09":"Ariège","10":"Aube","11":"Aude","12":"Aveyron","13":"Bouches-du-Rhône","14":"Calvados","15":"Cantal","16":"Charente","17":"Charente-Maritime","18":"Cher","19":"Corrèze","2A":"Corse-du-Sud","2B":"Haute-Corse","21":"Côte-d'Or","22":"Côtes-d'Armor","23":"Creuse","24":"Dordogne","25":"Doubs","26":"Drôme","27":"Eure","28":"Eure-et-Loir","29":"Finistère","30":"Gard","31":"Haute-Garonne","32":"Gers","33":"Gironde","34":"Hérault","35":"Ille-et-Vilaine","36":"Indre","37":"Indre-et-Loire","38":"Isère","39":"Jura","40":"Landes","41":"Loir-et-Cher","42":"Loire","43":"Haute-Loire","44":"Loire-Atlantique","45":"Loiret","46":"Lot","47":"Lot-et-Garonne","48":"Lozère","49":"Maine-et-Loire","50":"Manche","51":"Marne","52":"Haute-Marne","53":"Mayenne","54":"Meurthe-et-Moselle","55":"Meuse","56":"Morbihan","57":"Moselle","58":"Nièvre","59":"Nord","60":"Oise","61":"Orne","62":"Pas-de-Calais","63":"Puy-de-Dôme","64":"Pyrénées-Atlantiques","65":"Hautes-Pyrénées","66":"Pyrénées-Orientales","67":"Bas-Rhin","68":"Haut-Rhin","69":"Rhône","70":"Haute-Saône","71":"Saône-et-Loire","72":"Sarthe","73":"Savoie","74":"Haute-Savoie","75":"Paris","76":"Seine-Maritime","77":"Seine-et-Marne","78":"Yvelines","79":"Deux-Sèvres","80":"Somme","81":"Tarn","82":"Tarn-et-Garonne","83":"Var","84":"Vaucluse","85":"Vendée","86":"Vienne","87":"Haute-Vienne","88":"Vosges","89":"Yonne","90":"Territoire de Belfort","91":"Essonne","92":"Hauts-de-Seine","93":"Seine-Saint-Denis","94":"Val-de-Marne","95":"Val-d'Oise","9A":"Guadeloupe","9B":"Martinique","9C":"Guyane","9D":"La Réunion","9E":"Saint-Pierre-et-Miquelon","9F":"Mayotte"};
-const DEP_NUM = {"9A":"971","9B":"972","9C":"973","9D":"974","9E":"975","9F":"976"};
-
+"use strict";
+const { DEPS, DEP_NUM, EHPAD } = window;
 const $ = id => document.getElementById(id);
-const esc = s => String(s).replace(/[&<>"']/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
-const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\bsaint\b/g, "st").replace(/[-']/g, " ");
+const esc = s => String(s ?? "").replace(/[&<>"']/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
+const norm = s => s.normalize("NFD").replace(/[̀-ͯ]/g, "").toLowerCase().replace(/\bsaint(e?)\b/g, "st$1").replace(/[-']/g, " ");
+const nf = (v, d = 0) => v.toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d });
+const eur = (v, d = 0) => nf(v, d) + " €";
+const pct = v => nf(v, 1) + " %";
 const fmtTel = t => t ? t.replace(/(\d{2})(?=\d)/g, "$1 ") : "";
-
-$("date").textContent = new Date(window.EHPAD_DATE).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
-
-// Liste des départements présents
-const present = [...new Set(EHPAD.map(e => e.d))].sort((a, b) => (DEP_NUM[a] || a).localeCompare(DEP_NUM[b] || b));
-for (const d of present) {
-  const o = document.createElement("option");
-  o.value = d; o.textContent = `${DEP_NUM[d] || d} – ${DEPS[d] || d}`;
-  $("dep").append(o);
-}
-
-const map = L.map("map", { preferCanvas: true }).setView([46.6, 2.4], 6);
-L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
-  maxZoom: 19, attribution: '&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a>'
-}).addTo(map);
-
-const cluster = L.markerClusterGroup({ chunkedLoading: true, showCoverageOnHover: false, maxClusterRadius: 50 });
-map.addLayer(cluster);
-
-const eur = (v, d = 2) => v.toLocaleString("fr-FR", { minimumFractionDigits: d, maximumFractionDigits: d }) + " €";
-const row = (label, v, cls = "") => v != null ? `<tr class="${cls}"><td>${label}</td><td>${eur(v)}</td></tr>` : "";
-
-function prices(e) {
-  if (e.ref == null) return `<div class="prices cap-note">Prix non communiqués à la CNSA.</div>`;
-  const g = e.g || [];
-  return `<div class="prices">
-    <div class="big">≈ ${eur(e.mois, 0)} / mois</div>
-    <div class="cap-note">Chambre seule, hébergement + tarif dépendance GIR 5-6, sur 30 jours</div>
-    <table>
-      ${row("Chambre seule", e.pc)}
-      ${row("Chambre double", e.pd)}
-      ${row("Chambre seule (aide sociale)", e.pa)}
-      ${row("Hébergement temporaire", e.tc)}
-      ${g[2] != null ? `<tr class="sub"><td colspan="2">Tarif dépendance par jour (selon le GIR)</td></tr>` : ""}
-      ${row("GIR 1-2", g[0], "sub")}${row("GIR 3-4", g[1], "sub")}${row("GIR 5-6", g[2], "sub")}
-    </table>
-    <div class="cap-note">Prix par jour déclarés à la CNSA le ${new Date(e.pm).toLocaleDateString("fr-FR")}. Pour les GIR 1 à 4, l'APA prend en charge une partie du tarif dépendance.</div>
-  </div>`;
-}
-
-const STATUTS = { pub: "Public", pnl: "Privé non lucratif", com: "Privé commercial" };
-const NIVEAUX = {
-  A: "Démarche qualité avancée", B: "Démarche qualité structurée",
-  C: "Démarche qualité partielle", D: "Démarche qualité insuffisante",
+const depLabel = d => `${DEP_NUM[d] || d} – ${DEPS[d] || d}`;
+const store = {
+  get(k, def) { try { const v = localStorage.getItem(k); return v == null ? def : JSON.parse(v); } catch { return def; } },
+  set(k, v) { try { localStorage.setItem(k, JSON.stringify(v)); } catch { /* stockage indisponible */ } },
 };
-const THEMES = ["Bientraitance et éthique", "Droits de la personne", "Projet d'accompagnement personnalisé",
-  "Expression et participation", "Accompagnement à l'autonomie", "Accompagnement à la santé",
-  "Continuité des parcours", "Ressources humaines", "Démarche qualité et risques"];
 
-function quality(e) {
-  const fiche = `<a href="https://www.has-sante.fr/fiche-essms/${e.id}" target="_blank" rel="noopener">Fiche HAS</a>`;
-  if (!e.q) return `<div class="section"><h4>Qualité (HAS)</h4><div class="cap-note">Pas encore d'évaluation publiée par la HAS. Les EHPAD sont évalués tous les 5 ans.</div></div>`;
-  const themes = (e.qt || []).map((v, i) => v == null ? "" :
-    `<div class="th"><span>${THEMES[i]}</span><span class="bar"><i style="width:${v / 4 * 100}%"></i></span><span>${v.toFixed(1)}</span></div>`).join("");
-  return `<div class="section"><h4>Qualité (HAS)</h4>
-    <div class="q-head"><span class="lvl lvl-${e.q}">${e.q}</span><div><b>${NIVEAUX[e.q]}</b><br>
-      <span class="cap-note">Évaluation du ${new Date(e.qd).toLocaleDateString("fr-FR")}${e.qc ? ` · critères impératifs atteints : ${e.qc}` : ""}</span></div></div>
-    ${themes ? `<details class="themes"><summary>Détail par thème (note sur 4)</summary>${themes}</details>` : ""}
-    <div class="cap-note">Échelle de A (meilleur) à D. ${fiche}</div></div>`;
+// ---------- Libellés lisibles (les données FINESS sont en majuscules) ----------
+const SMALL = new Set(["de", "du", "des", "la", "le", "les", "et", "en", "au", "aux", "sur", "sous", "d", "l", "à"]);
+const UPPER = new Set(["EHPAD", "EHPA", "CH", "CHU", "CHI", "CHG", "CHS", "CCAS", "CIAS", "USLD", "PUV", "MAPAD", "SSR", "II", "III", "IV", "ADMR", "MGEN", "ORPEA", "LNA", "DOMUSVI", "SAS", "SARL", "MAS", "MARPA", "UHR", "PASA"]);
+function nice(s) {
+  return String(s || "").toLowerCase().split(/(\s+|-|'|\/|\()/).map((w, i, arr) => {
+    const u = w.toUpperCase().replace(/\./g, "");
+    if (UPPER.has(u)) return u;
+    if (i > 0 && SMALL.has(w) && arr[i - 1] !== "(") return w;
+    return w.charAt(0).toUpperCase() + w.slice(1);
+  }).join("").replace(/\bSt\b/g, "St").replace(/E\.h\.p\.a\.d\.?/gi, "EHPAD");
 }
 
-function popup(e) {
-  const q = encodeURIComponent(`${e.n}, ${e.a}, ${e.v}`);
-  return `<div class="popup-name">${esc(e.n)}</div>
-    ${esc(e.a)}<br>${esc(e.v)}<br>
-    ${e.t ? `☎ <a href="tel:${e.t}">${fmtTel(e.t)}</a><br>` : ""}
-    ${e.st ? `<div class="statut" style="margin-top:6px"><b>${STATUTS[e.st]}</b>${e.gn ? ` · géré par ${esc(e.gn)}` : ""}</div>` : ""}
-    <span class="tag ${e.h ? "" : "no"}">${e.h ? "Habilité à l'aide sociale" : "Non habilité à l'aide sociale"}</span>
-    ${quality(e)}
-    ${e.p != null ? `<div class="cap">
-      <div><b>${e.p}</b><span>places permanentes</span></div>
-      <div><b>${e.tp}</b><span>hébergement temporaire</span></div>
-      <div><b>${e.aj}</b><span>accueil de jour</span></div>
-    </div>
-    <div class="cap-note">Capacité totale de l'établissement. Pour les places libres, contactez l'EHPAD ou faites une demande sur <a href="https://trajectoire.sante-ra.fr/" target="_blank" rel="noopener">ViaTrajectoire</a>.</div>` : ""}
-    ${prices(e)}
-    <div class="popup-links" style="margin-top:8px">
-      <a href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Itinéraire et avis Google</a>
-      <a href="https://www.pour-les-personnes-agees.gouv.fr/annuaire-ehpad-et-maisons-de-retraite" target="_blank" rel="noopener">Annuaire officiel</a>
-    </div>
-    <div style="color:#888;font-size:12px;margin-top:4px">FINESS ${e.id}</div>`;
-}
+// ---------- Préparation des données ----------
+const STATUTS = { pub: "Public", pnl: "Privé non lucratif", com: "Privé commercial" };
+const NIVEAUX = { A: "Démarche qualité avancée", B: "Démarche qualité structurée", C: "Démarche qualité partielle", D: "Démarche qualité insuffisante" };
+const THEMES = ["Bientraitance et éthique", "Droits de la personne", "Projet d'accompagnement personnalisé", "Expression et participation",
+  "Accompagnement à l'autonomie", "Accompagnement à la santé", "Continuité des parcours", "Ressources humaines", "Démarche qualité et risques"];
+const okRate = v => v != null && v >= 0 && v <= 100 ? v : null;   // comme l'annuaire officiel : hors 0-100 = non transmis
 
 for (const e of EHPAD) {
-  e.key = norm(`${e.n} ${e.v} ${e.a}`);
-  // Prix de référence : chambre seule, sinon tarif aide sociale (EHPAD 100 % habilités)
+  e.nom = nice(e.n);
+  e.ville = (e.v || "").replace(/^(\d{5})\s+(.*)$/, (m, cp, c) => `${cp} ${nice(c)}`);
   e.ref = e.pc ?? e.pa ?? null;
   e.mois = e.ref != null ? Math.round((e.ref + (e.g?.[2] || 0)) * 30) : null;
-  e.marker = L.marker([e.la, e.lo], { title: e.n }).bindPopup(() => popup(e), { maxWidth: 320, maxHeight: 460 });
+  e.alz = (e.i?.un || []).some(u => /Alzheimer|PASA|UHR/.test(u));
+  // Oui / non : toute autre valeur (ex. -1) signifie « non transmis »
+  if (e.i) for (const k of ["inf", "med"]) e.i[k] = e.i[k] === 1 ? 1 : e.i[k] === 0 ? 0 : null;
+  e.key = norm(`${e.n} ${e.v} ${e.a} ${DEPS[e.d] || ""} ${DEP_NUM[e.d] || e.d}`);
 }
-
-let shown = [];
-function apply(fit) {
-  const q = norm($("q").value.trim()), dep = $("dep").value, hab = $("hab").checked;
-  const tmp = $("tmp").checked, jour = $("jour").checked, budget = +$("budget").value;
-  const statut = $("statut").value, qual = $("qualite").value;
-  const okQual = e => !qual || (qual === "eval" ? !!e.q : qual.includes(e.q));
-  const words = q.split(/\s+/).filter(Boolean);
-  shown = EHPAD.filter(e => (!dep || e.d === dep) && (!hab || e.h) && (!tmp || e.tp > 0) && (!jour || e.aj > 0)
-    && (!budget || (e.mois != null && e.mois <= budget)) && (!statut || e.st === statut) && okQual(e)
-    && words.every(w => e.key.includes(w)));
-  cluster.clearLayers();
-  cluster.addLayers(shown.map(e => e.marker));
-  $("n").textContent = shown.length.toLocaleString("fr-FR");
-  renderList();
-  if (fit && shown.length) {
-    if (shown.length === EHPAD.length) map.setView([46.6, 2.4], 6);
-    else map.fitBounds(L.latLngBounds(shown.map(e => [e.la, e.lo])), { padding: [30, 30], maxZoom: 15 });
-  }
-}
-
-const LIST_MAX = 200;
-function renderList() {
-  const by = $("sort").value;
-  const cmp = {
-    ville: (a, b) => a.v.localeCompare(b.v, "fr"),
-    prix: (a, b) => (a.mois ?? Infinity) - (b.mois ?? Infinity),
-    places: (a, b) => (b.p || 0) - (a.p || 0),
-    qualite: (a, b) => (a.q || "Z").localeCompare(b.q || "Z") || (a.mois ?? Infinity) - (b.mois ?? Infinity),
-  }[by];
-  const items = [...shown].sort(cmp).slice(0, LIST_MAX);
-  $("list").innerHTML = items.map(e =>
-    `<li tabindex="0" data-id="${e.id}"><div class="name">${esc(e.n)}</div><div class="city">${e.p ? `<span class="places">${e.p} places</span>` : ""}${esc(e.v)}</div>`
-    + `<div class="price">${e.q ? `<span class="lvl lvl-${e.q}" title="Qualité HAS">${e.q}</span>` : ""}`
-    + `${e.mois ? `≈ ${eur(e.mois, 0)} / mois` : ""}${e.st ? ` · ${STATUTS[e.st]}` : ""}</div></li>`).join("")
-    + (shown.length > LIST_MAX ? `<li class="more">… et ${(shown.length - LIST_MAX).toLocaleString("fr-FR")} autres. Affinez la recherche.</li>` : "")
-    + (!shown.length ? `<li class="more">Aucun EHPAD ne correspond.</li>` : "");
-}
-
 const byId = Object.fromEntries(EHPAD.map(e => [e.id, e]));
-function focusOn(id) {
-  const e = byId[id]; if (!e) return;
-  if (window.innerWidth <= 760) $("panel").classList.add("collapsed"), $("toggle").textContent = "Voir la liste";
-  cluster.zoomToShowLayer(e.marker, () => e.marker.openPopup());
-}
-$("list").addEventListener("click", ev => { const li = ev.target.closest("li[data-id]"); if (li) focusOn(li.dataset.id); });
-$("list").addEventListener("keydown", ev => { if (ev.key === "Enter") { const li = ev.target.closest("li[data-id]"); if (li) focusOn(li.dataset.id); } });
 
-let t;
-$("q").addEventListener("input", () => { clearTimeout(t); t = setTimeout(() => apply(true), 250); });
-$("dep").addEventListener("change", () => apply(true));
-for (const id of ["hab", "tmp", "jour", "budget", "statut", "qualite"]) $(id).addEventListener("change", () => apply(false));
-$("sort").addEventListener("change", renderList);
-$("toggle").addEventListener("click", () => {
-  const c = $("panel").classList.toggle("collapsed");
-  $("toggle").textContent = c ? "Voir la liste" : "Masquer la liste";
+const NEEDS = [
+  { id: "alz", label: "Unité Alzheimer ou PASA", tip: "Unité sécurisée ou pôle d'activités adaptées pour les personnes atteintes de la maladie d'Alzheimer ou de troubles apparentés.", test: e => e.alz },
+  { id: "nuit", label: "Infirmier présent la nuit", tip: "Sans infirmier de nuit, la nuit est assurée par des aides-soignants ; les urgences médicales passent par le 15.", test: e => e.i?.inf === 1 },
+  { id: "tmp", label: "Hébergement temporaire", tip: "Séjours de quelques semaines : après une hospitalisation, pour soulager un aidant ou pour essayer l'établissement.", test: e => e.tp > 0 },
+  { id: "jour", label: "Accueil de jour", tip: "Accueil en journée, la personne rentre dormir chez elle.", test: e => e.aj > 0 },
+  { id: "hab", label: "Habilité à l'aide sociale", tip: "Le département peut payer tout ou partie de l'hébergement si les ressources de la personne et de ses enfants sont insuffisantes (aide sociale à l'hébergement).", test: e => e.h === 1 },
+];
+$("needs").innerHTML = NEEDS.map(n => `<label class="check"><input type="checkbox" value="${n.id}"> ${n.label}
+  <span class="tip" tabindex="0" data-tip="${esc(n.tip)}">?</span></label>`).join("");
+
+const present = [...new Set(EHPAD.map(e => e.d))].sort((a, b) => (DEP_NUM[a] || a).localeCompare(DEP_NUM[b] || b));
+$("dep").insertAdjacentHTML("beforeend", present.map(d => `<option value="${d}">${esc(depLabel(d))}</option>`).join(""));
+$("date").textContent = new Date(window.EHPAD_DATE).toLocaleDateString("fr-FR", { day: "numeric", month: "long", year: "numeric" });
+
+// ---------- État ----------
+const state = { q: "", dep: "", pmin: 0, pmax: 0, qual: "", statut: new Set(), needs: new Set(), sort: "prix", color: "prix", limit: 40, selected: null };
+let selection = store.get("ehpad-selection", []).filter(id => byId[id]);
+let shown = [];
+
+function matches(e) {
+  if (state.dep && e.d !== state.dep) return false;
+  if (state.pmin || state.pmax) {
+    if (e.mois == null) return false;
+    if (state.pmin && e.mois < state.pmin) return false;
+    if (state.pmax && e.mois > state.pmax) return false;
+  }
+  if (state.qual && !(e.q && state.qual.includes(e.q))) return false;
+  if (state.statut.size && !state.statut.has(e.st)) return false;
+  for (const n of NEEDS) if (state.needs.has(n.id) && !n.test(e)) return false;
+  if (state.q) { const words = norm(state.q).split(/\s+/).filter(Boolean); if (!words.every(w => e.key.includes(w))) return false; }
+  return true;
+}
+
+const SORTS = {
+  prix: (a, b) => (a.mois ?? Infinity) - (b.mois ?? Infinity),
+  qualite: (a, b) => (a.q || "Z").localeCompare(b.q || "Z") || (a.mois ?? Infinity) - (b.mois ?? Infinity),
+  places: (a, b) => (b.p || 0) - (a.p || 0),
+  nom: (a, b) => a.nom.localeCompare(b.nom, "fr"),
+};
+
+function apply({ fit = false } = {}) {
+  shown = EHPAD.filter(matches).sort(SORTS[state.sort]);
+  state.limit = 40;
+  renderChips();
+  renderList();
+  renderPoints();
+  renderLegend();
+  updateDepHighlight();
+  if (fit) fitToResults();
+}
+
+// ---------- Étiquettes des filtres actifs ----------
+function activeFilters() {
+  const f = [];
+  if (state.q) f.push({ label: `« ${state.q} »`, clear: () => { state.q = ""; $("q").value = ""; $("q-clear").hidden = true; } });
+  if (state.dep) f.push({ label: DEPS[state.dep] || state.dep, clear: () => { state.dep = ""; $("dep").value = ""; resetZoom(); } });
+  if (state.pmin || state.pmax) f.push({ label: budgetLabel(), clear: clearBudget });
+  if (state.qual) f.push({ label: state.qual === "A" ? "Note A" : "Note A ou B", clear: () => { state.qual = ""; syncSeg("qual", [""]); } });
+  for (const s of state.statut) f.push({ label: STATUTS[s], clear: () => { state.statut.delete(s); syncSeg("statut", [...state.statut]); } });
+  for (const n of NEEDS) if (state.needs.has(n.id)) f.push({ label: n.label, clear: () => { state.needs.delete(n.id); syncNeeds(); } });
+  return f;
+}
+let chipActions = [];
+function renderChips() {
+  const f = activeFilters();
+  chipActions = f.map(x => x.clear);
+  $("chips").innerHTML = f.map((x, i) => `<button class="chip" type="button" data-i="${i}" aria-label="Retirer le filtre ${esc(x.label)}">${esc(x.label)} <span aria-hidden="true">×</span></button>`).join("")
+    + (f.length > 1 ? `<button class="chip clear-all" type="button" data-all>Tout effacer</button>` : "");
+  const extra = (state.qual ? 1 : 0) + state.statut.size + state.needs.size;
+  $("more-count").textContent = extra ? `(${extra})` : "";
+}
+$("chips").addEventListener("click", ev => {
+  const b = ev.target.closest("button"); if (!b) return;
+  if (b.dataset.all != null) { clearAll(); return; }
+  chipActions[+b.dataset.i]?.(); apply();
+});
+function budgetLabel() {
+  if (state.pmin && state.pmax) return `Budget `+ eur(state.pmin) + ` – ` + eur(state.pmax);
+  return state.pmin ? `Budget ≥ ` + eur(state.pmin) : `Budget ≤ ` + eur(state.pmax);
+}
+function clearBudget() {
+  state.pmin = 0; state.pmax = 0; $("pmin").value = ""; $("pmax").value = "";
+  $("price-error").hidden = true; $("pmin").removeAttribute("aria-invalid"); $("pmax").removeAttribute("aria-invalid");
+}
+function clearAll() {
+  Object.assign(state, { q: "", dep: "", qual: "" }); clearBudget(); state.statut.clear(); state.needs.clear();
+  $("q").value = ""; $("q-clear").hidden = true; $("dep").value = "";
+  syncSeg("qual", [""]); syncSeg("statut", []); syncNeeds(); resetZoom(); apply();
+}
+function syncSeg(name, values) {
+  document.querySelectorAll(`[data-filter="${name}"] .toggle`).forEach(b => b.setAttribute("aria-pressed", values.includes(b.dataset.value)));
+}
+function syncNeeds() { document.querySelectorAll("#needs input").forEach(i => i.checked = state.needs.has(i.value)); }
+
+// ---------- Liste de résultats ----------
+const lvlBadge = q => q ? `<span class="badge" title="${NIVEAUX[q]}"><span class="lvl lvl-${q}">${q}</span> Note HAS</span>` : `<span class="badge">Pas encore évalué</span>`;
+const starIcon = `<svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m12 3 2.7 5.6 6.1.9-4.4 4.3 1 6.1L12 17l-5.4 2.9 1-6.1L3.2 9.5l6.1-.9z"/></svg>`;
+const inSel = id => selection.includes(id);
+
+function renderList() {
+  const n = shown.length;
+  $("n").textContent = nf(n);
+  $("n-label").textContent = n > 1 ? "EHPAD trouvés" : "EHPAD trouvé";
+  renderGuide();
+  if (!n) {
+    $("list").innerHTML = `<li class="empty"><b>Aucun EHPAD ne correspond</b>Essayez d'élargir le budget, de retirer un filtre ou de chercher une ville voisine.
+      <br>${state.pmin || state.pmax ? `<button class="btn" type="button" data-act="budget">Retirer le budget</button>` : ""}<button class="btn primary" type="button" data-act="clear">Tout effacer</button></li>`;
+    $("load-more").hidden = true;
+    return;
+  }
+  $("list").innerHTML = shown.slice(0, state.limit).map(e => `
+    <li class="item" tabindex="0" data-id="${e.id}" aria-label="${esc(e.nom)}, ${esc(e.ville)}">
+      <h3>${esc(e.nom)}</h3>
+      <div class="where">${esc(e.ville)}${e.st ? ` · ${STATUTS[e.st]}` : ""}</div>
+      <div class="facts">
+        ${e.mois ? `<span class="price-big">${eur(e.mois)}<small> /mois</small></span>` : `<span class="badge">Prix non communiqué</span>`}
+        ${lvlBadge(e.q)}
+        ${e.p ? `<span>${e.p} places</span>` : ""}
+      </div>
+      <button class="star" type="button" data-star="${e.id}" aria-pressed="${inSel(e.id)}" aria-label="${inSel(e.id) ? "Retirer de" : "Ajouter à"} ma sélection">${starIcon}</button>
+    </li>`).join("");
+  const rest = n - state.limit;
+  $("load-more").hidden = rest <= 0;
+  $("load-more").textContent = `Afficher ${nf(Math.min(40, rest))} EHPAD de plus (${nf(rest)} restants)`;
+}
+$("load-more").addEventListener("click", () => { state.limit += 40; renderList(); });
+$("list").addEventListener("click", ev => {
+  const act = ev.target.closest("[data-act]");
+  if (act) { if (act.dataset.act === "budget") { clearBudget(); apply(); } else clearAll(); return; }
+  const star = ev.target.closest("[data-star]");
+  if (star) { toggleSelection(star.dataset.star); return; }
+  const li = ev.target.closest(".item"); if (li) openDetail(li.dataset.id);
+});
+$("list").addEventListener("keydown", ev => { if (ev.key === "Enter" && ev.target.classList.contains("item")) openDetail(ev.target.dataset.id); });
+$("list").addEventListener("mouseover", ev => { const li = ev.target.closest(".item"); highlightPoint(li ? li.dataset.id : null); });
+$("list").addEventListener("mouseleave", () => highlightPoint(null));
+
+function renderGuide() {
+  const show = !store.get("ehpad-guide-vu", false) && !activeFilters().length;
+  $("guide-slot").innerHTML = show ? `<div class="guide" role="note"><b>Comment choisir ?</b>
+    <ol><li>Tapez une ville ou cliquez sur un département de la carte.</li>
+      <li>Indiquez un budget minimum et maximum, puis cochez les besoins de votre proche dans « Plus de filtres ».</li>
+      <li>Ouvrez une fiche, puis ajoutez-la à <b>Ma sélection</b> (★) pour comparer jusqu'à 4 EHPAD.</li></ol>
+    <button class="btn ghost close" type="button" id="guide-close" aria-label="Masquer ce guide">✕</button></div>` : "";
+  $("guide-close")?.addEventListener("click", () => { store.set("ehpad-guide-vu", true); renderGuide(); });
+}
+
+// ---------- Fiche détaillée ----------
+const tip = t => `<span class="tip" tabindex="0" data-tip="${esc(t)}">?</span>`;
+function versus(v, avg, higherIsBetter) {
+  if (v == null || avg == null) return "";
+  const better = higherIsBetter ? v > avg * 1.05 : v < avg * 0.95, worse = higherIsBetter ? v < avg * 0.95 : v > avg * 1.05;
+  return `<span class="cmp ${better ? "good" : worse ? "bad" : ""}">${better ? "▲ mieux" : worse ? "▼ moins bien" : "≈ dans la moyenne"}${better || worse ? " que la moyenne" : ""} (${pct(avg)})</span>`;
+}
+const row = (label, v, cls = "") => v != null ? `<tr class="${cls}"><td>${label}</td><td>${eur(v, 2)}</td></tr>` : "";
+
+function detailHtml(e) {
+  const q = encodeURIComponent(`${e.n}, ${e.a}, ${e.v}`);
+  const i = e.i ? { ...e.i, enc: okRate(e.i.enc), rot: okRate(e.i.rot), abs: okRate(e.i.abs) } : null;
+  const nt = `<span class="note">non transmis</span>`;
+  const yn = v => v == null ? nt : v ? "Oui" : "Non";
+  const g = e.g || [];
+  const gmp = (window.GMP_DEP || {})[e.d], nat = window.GMP_MOYEN;
+  const etp = i?.enc != null && e.p ? Math.round(i.enc / 100 * e.p) : null;
+  const extras = i ? [...(i.un || []), ...(i.eq || [])] : [];
+  return `
+    <button class="btn ghost back" type="button" id="back">← Retour aux résultats</button>
+    <h2 id="detail-title" tabindex="-1">${esc(e.nom)}</h2>
+    <p class="addr">${esc(nice(e.a))}, ${esc(e.ville)}</p>
+    <p class="who">${e.st ? STATUTS[e.st] : ""}${e.gn ? ` · géré par ${esc(nice(e.gn))}` : ""}</p>
+    <div class="actions">
+      ${e.t ? `<a class="btn primary" href="tel:${e.t}"><svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M22 16.9v3a2 2 0 0 1-2.2 2 19.8 19.8 0 0 1-8.6-3.1 19.5 19.5 0 0 1-6-6A19.8 19.8 0 0 1 2.1 4.2 2 2 0 0 1 4.1 2h3a2 2 0 0 1 2 1.7c.1.9.4 1.8.7 2.7a2 2 0 0 1-.5 2.1L8 9.8a16 16 0 0 0 6 6l1.3-1.3a2 2 0 0 1 2.1-.5c.9.3 1.8.6 2.7.7a2 2 0 0 1 1.7 2z"/></svg>${fmtTel(e.t)}</a>` : ""}
+      <button class="btn" type="button" data-star="${e.id}" aria-pressed="${inSel(e.id)}">${starIcon}<span>${inSel(e.id) ? "Dans ma sélection" : "Ajouter à ma sélection"}</span></button>
+      <a class="btn" href="https://www.google.com/maps/search/?api=1&query=${q}" target="_blank" rel="noopener">Itinéraire et avis Google</a>
+      <button class="btn" type="button" id="show-on-map">Voir sur la carte</button>
+    </div>
+
+    <div class="kpis">
+      <div class="kpi"><div class="k">Prix estimé ${tip("Chambre seule : prix d'hébergement + tarif dépendance GIR 5-6 (payé par tous), sur 30 jours. Les aides (APA, APL, aide sociale) peuvent réduire ce montant.")}</div>
+        <div class="v">${e.mois ? `${eur(e.mois)}<span class="note" style="margin:0">/mois</span>` : "–"}</div></div>
+      <div class="kpi"><div class="k">Qualité HAS ${tip("Évaluation de la Haute Autorité de santé, tous les 5 ans : A = démarche qualité avancée, B = structurée, C = partielle, D = insuffisante.")}</div>
+        <div class="v">${e.q ? `<span class="lvl lvl-${e.q}">${e.q}</span>` : "–"}</div><div class="s">${e.q ? NIVEAUX[e.q] : "Pas encore évalué"}</div></div>
+      <div class="kpi"><div class="k">Places</div><div class="v">${e.p ?? "–"}</div><div class="s">capacité totale, pas les places libres</div></div>
+      <div class="kpi"><div class="k">Aide sociale ${tip("Habilité : le département peut prendre en charge tout ou partie de l'hébergement si les ressources sont insuffisantes.")}</div>
+        <div class="v" style="font-size:15px">${e.h ? "Habilité" : "Non habilité"}</div></div>
+    </div>
+
+    <section class="sec"><h3>Prix détaillés</h3>
+      ${e.ref == null ? `<p class="note">Prix non communiqués à la CNSA.</p>` : `
+      <table class="kv">
+        ${row("Chambre seule, par jour", e.pc)}${row("Chambre double, par jour", e.pd)}${row("Tarif aide sociale, par jour", e.pa)}${row("Hébergement temporaire, par jour", e.tc)}
+        ${g[2] != null ? `<tr class="sub"><td colspan="2"><b>Tarif dépendance par jour</b>, selon le GIR ${tip("Le GIR mesure la perte d'autonomie, de 1 (très dépendant) à 6 (autonome). Pour les GIR 1 à 4, l'APA du département paie une partie de ce tarif.")}</td></tr>` : ""}
+        ${row("GIR 1-2 (très dépendant)", g[0], "sub")}${row("GIR 3-4", g[1], "sub")}${row("GIR 5-6 (autonome)", g[2], "sub")}
+      </table>
+      <p class="note">Prix déclarés à la CNSA le ${new Date(e.pm).toLocaleDateString("fr-FR")}.</p>`}
+    </section>
+
+    <section class="sec"><h3>Qualité (évaluation HAS)</h3>
+      ${e.q ? `<p style="margin:0">${NIVEAUX[e.q]} — évaluation du ${new Date(e.qd).toLocaleDateString("fr-FR")}${e.qc ? ` · critères impératifs atteints : <b>${e.qc}</b>` : ""}</p>
+        ${(e.qt || []).some(v => v != null) ? `<details class="themes"><summary>Détail par thème (note sur 4)</summary>
+          ${(e.qt || []).map((v, k) => v == null ? "" : `<div class="th"><span>${THEMES[k]}</span><span class="bar"><i style="width:${v / 4 * 100}%"></i></span><span>${nf(v, 1)}</span></div>`).join("")}</details>` : ""}
+        <p class="note"><a href="https://www.has-sante.fr/fiche-essms/${e.id}" target="_blank" rel="noopener">Lire la fiche et le rapport HAS</a></p>`
+        : `<p class="note">Pas encore d'évaluation publiée. Les EHPAD sont évalués tous les 5 ans ; demandez à l'établissement la date de sa prochaine évaluation.</p>`}
+    </section>
+
+    <section class="sec"><h3>Personnel et soins</h3>
+      ${i ? `<table class="kv">
+        <tr><td>Taux d'encadrement ${tip("Soignants et éducatifs (médecins, infirmiers, aides-soignants, psychologues, animateurs…) en équivalents temps plein pour 100 résidents. Plus c'est haut, mieux c'est.")}</td><td>${i.enc != null ? `${pct(i.enc)}${versus(i.enc, i.encM, true)}` : nt}</td></tr>
+        ${etp ? `<tr><td>Soignants et éducatifs (estimation)</td><td>≈ ${etp} ETP</td></tr>` : ""}
+        <tr><td>Turnover du personnel ${tip("Part du personnel arrivé ou parti dans l'année. Plus c'est bas, plus les équipes sont stables.")}</td><td>${i.rot != null ? `${pct(i.rot)}${versus(i.rot, i.rotM, false)}` : nt}</td></tr>
+        <tr><td>Absentéisme</td><td>${i.abs != null ? `${pct(i.abs)}${versus(i.abs, i.absM, false)}` : nt}</td></tr>
+        <tr><td>Médecin coordonnateur</td><td>${yn(i.med)}</td></tr>
+        <tr><td>Infirmier de nuit</td><td>${yn(i.inf)}</td></tr>
+        ${i.cs != null ? `<tr><td>Chambres</td><td>${i.cs} seules${i.cd ? `, ${i.cd} doubles` : ""}</td></tr>` : ""}
+      </table>
+      ${extras.length ? `<div class="tags">${extras.map(x => `<span class="badge">${esc(x)}</span>`).join("")}</div>` : ""}
+      <p class="note">Données ${i.an || ""} déclarées par l'établissement (annuaire officiel).</p>` : `<p class="note">Indicateurs non publiés pour cet établissement.</p>`}
+    </section>
+
+    <section class="sec"><h3>Places et admission</h3>
+      <table class="kv">
+        <tr><td>Hébergement permanent</td><td>${e.p ?? "–"} places</td></tr>
+        <tr><td>Hébergement temporaire</td><td>${e.tp ?? "–"} places</td></tr>
+        <tr><td>Accueil de jour</td><td>${e.aj ?? "–"} places</td></tr>
+      </table>
+      <p class="note">Il s'agit de la capacité totale. Pour connaître les places libres et déposer une demande : contactez l'EHPAD ou passez par
+        <a href="https://trajectoire.sante-ra.fr/" target="_blank" rel="noopener">ViaTrajectoire</a>.</p>
+    </section>
+
+    ${gmp ? `<section class="sec"><h3>Dépendance des résidents du département ${tip("GIR moyen pondéré (GMP) : de 0 à 1 000, plus il est élevé, plus les résidents sont dépendants. Publié seulement en moyenne par département.")}</h3>
+      <p style="margin:0">GIR moyen des EHPAD de ${esc(DEPS[e.d] || e.d)} : <b>${gmp[0]}</b> (${gmp[1]}), contre ${nat[0]} en moyenne nationale.</p></section>` : ""}
+
+    <p class="note" style="margin-top:20px">N° FINESS ${e.id} · <a href="https://www.pour-les-personnes-agees.gouv.fr/annuaire-ehpad-et-maisons-de-retraite" target="_blank" rel="noopener">Annuaire officiel</a></p>`;
+}
+
+let listScroll = 0;
+function openDetail(id, { fromMap = false } = {}) {
+  const e = byId[id]; if (!e) return;
+  if (!$("detail").hidden && state.selected === id) return;
+  if ($("detail").hidden) listScroll = $("scroll").scrollTop;
+  state.selected = id;
+  $("detail").innerHTML = detailHtml(e);
+  $("results-view").hidden = true; $("search-zone").hidden = true; $("detail").hidden = false;
+  $("scroll").scrollTop = 0;
+  $("detail-title").focus({ preventScroll: true });
+  markSelected();
+  if (fromMap && isMobile()) setView("list");
+}
+function closeDetail() {
+  state.selected = null;
+  $("detail").hidden = true; $("results-view").hidden = false; $("search-zone").hidden = false;
+  renderList();
+  $("scroll").scrollTop = listScroll;
+  markSelected();
+}
+$("detail").addEventListener("click", ev => {
+  if (ev.target.closest("#back")) { closeDetail(); return; }
+  const star = ev.target.closest("[data-star]"); if (star) { toggleSelection(star.dataset.star); return; }
+  if (ev.target.closest("#show-on-map")) { const e = byId[state.selected]; if (isMobile()) setView("map"); zoomToPoint(e); }
+});
+document.addEventListener("keydown", ev => { if (ev.key === "Escape" && !$("detail").hidden && !document.querySelector("dialog[open]")) closeDetail(); });
+
+// ---------- Ma sélection et comparaison ----------
+function toggleSelection(id) {
+  if (inSel(id)) selection = selection.filter(x => x !== id);
+  else if (selection.length >= 4) { alert("Vous pouvez comparer 4 EHPAD au maximum. Retirez-en un de votre sélection."); return; }
+  else selection.push(id);
+  store.set("ehpad-selection", selection);
+  $("sel-count").textContent = selection.length;
+  document.querySelectorAll(`[data-star="${id}"]`).forEach(b => {
+    b.setAttribute("aria-pressed", inSel(id));
+    const span = b.querySelector("span"); if (span) span.textContent = inSel(id) ? "Dans ma sélection" : "Ajouter à ma sélection";
+    if (b.classList.contains("star")) b.setAttribute("aria-label", `${inSel(id) ? "Retirer de" : "Ajouter à"} ma sélection`);
+  });
+  if ($("compare").open) renderCompare();
+}
+$("sel-count").textContent = selection.length;
+
+function renderCompare() {
+  const items = selection.map(id => byId[id]);
+  if (!items.length) {
+    $("compare-body").innerHTML = `<div class="empty"><b>Votre sélection est vide</b>Cliquez sur l'étoile ★ d'un EHPAD pour l'ajouter. Vous pourrez ensuite comparer jusqu'à 4 établissements côte à côte.</div>`;
+    return;
+  }
+  const r = e => e.i ? { enc: okRate(e.i.enc), rot: okRate(e.i.rot), abs: okRate(e.i.abs), inf: e.i.inf, med: e.i.med } : {};
+  const rows = [
+    ["Ville", e => esc(e.ville)],
+    ["Statut", e => e.st ? STATUTS[e.st] : "–"],
+    ["Prix estimé / mois", e => e.mois ? eur(e.mois) : "–", e => e.mois, "min"],
+    ["Chambre seule / jour", e => e.pc != null ? eur(e.pc, 2) : "–", e => e.pc, "min"],
+    ["Note HAS", e => e.q ? `<span class="lvl lvl-${e.q}">${e.q}</span> ${NIVEAUX[e.q]}` : "Pas encore évalué", e => e.q ? "ABCD".indexOf(e.q) : null, "min"],
+    ["Taux d'encadrement", e => r(e).enc != null ? pct(r(e).enc) : "–", e => r(e).enc, "max"],
+    ["Turnover du personnel", e => r(e).rot != null ? pct(r(e).rot) : "–", e => r(e).rot, "min"],
+    ["Infirmier de nuit", e => r(e).inf == null ? "–" : r(e).inf ? "Oui" : "Non", e => r(e).inf, "max"],
+    ["Unité Alzheimer / PASA", e => e.alz ? "Oui" : "Non"],
+    ["Places", e => e.p ?? "–"],
+    ["Aide sociale", e => e.h ? "Habilité" : "Non habilité"],
+    ["Téléphone", e => e.t ? `<a href="tel:${e.t}">${fmtTel(e.t)}</a>` : "–"],
+  ];
+  const best = (get, dir) => {
+    const vals = items.map(get).filter(v => v != null);
+    if (vals.length < 2 || new Set(vals).size < 2) return null;
+    return dir === "min" ? Math.min(...vals) : Math.max(...vals);
+  };
+  $("compare-body").innerHTML = `<div style="overflow-x:auto"><table class="cmp-table">
+    <thead><tr><th scope="col"><span class="sr-only">Critère</span></th>${items.map(e => `<th scope="col">${esc(e.nom)}
+      <div><button class="btn ghost" style="padding:2px 6px;min-height:0;font-size:12.5px" type="button" data-open="${e.id}">Voir la fiche</button>
+      <button class="btn ghost" style="padding:2px 6px;min-height:0;font-size:12.5px" type="button" data-star="${e.id}">Retirer</button></div></th>`).join("")}</tr></thead>
+    <tbody>${rows.map(([label, fmt, get, dir]) => { const b = get ? best(get, dir) : null;
+      return `<tr><th scope="row">${label}</th>${items.map(e => `<td class="${b != null && get(e) === b ? "best" : ""}">${fmt(e)}</td>`).join("")}</tr>`; }).join("")}</tbody>
+  </table></div>
+  <p class="note">Sur fond vert : la meilleure valeur de la sélection pour ce critère.</p>`;
+}
+$("open-compare").addEventListener("click", () => { renderCompare(); $("compare").showModal(); });
+$("compare-body").addEventListener("click", ev => {
+  const s = ev.target.closest("[data-star]"); if (s) { toggleSelection(s.dataset.star); return; }
+  const o = ev.target.closest("[data-open]"); if (o) { $("compare").close(); openDetail(o.dataset.open); if (isMobile()) setView("list"); }
+});
+$("open-about").addEventListener("click", () => $("about").showModal());
+document.querySelectorAll("dialog").forEach(d => {
+  d.addEventListener("click", ev => { if (ev.target === d || ev.target.closest("[data-close]")) d.close(); });
 });
 
-apply(false);
+// ---------- Carte schématique (D3, projection conique conforme avec l'outre-mer en encarts) ----------
+const svg = d3.select("#map");
+const gRoot = svg.append("g");
+const gDeps = gRoot.append("g");
+const gFrame = gRoot.append("path").attr("class", "frame");
+const gInsetLabels = gRoot.append("g").attr("pointer-events", "none");
+const gLabels = gRoot.append("g").attr("pointer-events", "none");
+const gPts = gRoot.append("g");
+const gCities = gRoot.append("g").attr("pointer-events", "none");
+const tooltip = $("tooltip");
+let projection, path, W = 0, H = 0, k = 1, baseR = 2.4;
+
+const CITIES = [["Paris", 48.857, 2.352], ["Marseille", 43.296, 5.370], ["Lyon", 45.764, 4.836], ["Toulouse", 43.605, 1.444], ["Nice", 43.710, 7.262],
+  ["Nantes", 47.218, -1.554], ["Strasbourg", 48.573, 7.752], ["Montpellier", 43.611, 3.877], ["Bordeaux", 44.838, -0.579], ["Lille", 50.629, 3.057],
+  ["Rennes", 48.117, -1.678], ["Reims", 49.258, 4.032], ["Le Havre", 49.494, 0.108], ["Toulon", 43.124, 5.928], ["Grenoble", 45.188, 5.725],
+  ["Dijon", 47.322, 5.041], ["Angers", 47.474, -0.554], ["Nîmes", 43.837, 4.360], ["Clermont-Ferrand", 45.778, 3.087], ["Le Mans", 48.006, 0.199],
+  ["Brest", 48.390, -4.486], ["Tours", 47.394, 0.685], ["Amiens", 49.894, 2.296], ["Limoges", 45.834, 1.262], ["Perpignan", 42.699, 2.895],
+  ["Metz", 49.119, 6.176], ["Besançon", 47.238, 6.024], ["Orléans", 47.903, 1.909], ["Rouen", 49.443, 1.099], ["Caen", 49.183, -0.371],
+  ["Nancy", 48.692, 6.184], ["Poitiers", 46.580, 0.340], ["Pau", 43.295, -0.371], ["La Rochelle", 46.160, -1.151], ["Ajaccio", 41.919, 8.738],
+  ["Bastia", 42.697, 9.451], ["Saint-Denis", -20.882, 55.450], ["Pointe-à-Pitre", 16.241, -61.533], ["Fort-de-France", 14.616, -61.059],
+  ["Cayenne", 4.922, -52.313], ["Mamoudzou", -12.780, 45.228]];
+
+const css = n => getComputedStyle(document.documentElement).getPropertyValue(n).trim();
+const COLOR = {
+  prix: { title: "Prix estimé par mois", items: [["< 2 000 €", "--p1", e => e.mois < 2000], ["2 000 – 2 499 €", "--p2", e => e.mois >= 2000 && e.mois < 2500],
+    ["2 500 – 2 999 €", "--p3", e => e.mois >= 2500 && e.mois < 3000], ["3 000 € et plus", "--p4", e => e.mois >= 3000], ["Non communiqué", "--none", e => e.mois == null]] },
+  qualite: { title: "Note HAS", items: [["A – avancée", "--p4", e => e.q === "A"], ["B – structurée", "--p3", e => e.q === "B"], ["C – partielle", "--p2", e => e.q === "C"],
+    ["D – insuffisante", "--p1", e => e.q === "D"], ["Pas encore évalué", "--none", e => !e.q]] },
+  statut: { title: "Statut", items: [["Public", "--s1", e => e.st === "pub"], ["Privé non lucratif", "--s2", e => e.st === "pnl"], ["Privé commercial", "--s3", e => e.st === "com"], ["Inconnu", "--none", e => !e.st]] },
+};
+function colorOf(e) { const it = COLOR[state.color].items.find(x => x[2](e)); return `var(${it ? it[1] : "--none"})`; }
+
+function renderLegend() {
+  const items = COLOR[state.color].items.map(([label, v, test]) => ({ label, v, n: shown.filter(test).length })).filter(x => x.n || !/Non|Pas|Inconnu/.test(x.label));
+  $("legend-items").innerHTML = items.map(x => `<li><span class="dot" style="background:var(${x.v})"></span>${x.label}<span class="n">${nf(x.n)}</span></li>`).join("");
+}
+
+// Mise en page : la métropole (conique conforme, comme l'IGN) et une colonne d'encarts pour l'outre-mer.
+// Chaque territoire a sa propre projection ; un point d'outre-mer hors de son encart (ex. Saint-Martin) n'est pas dessiné.
+const isDom = code => /^9[A-F]$/.test(code);
+const OUTREMER = [["9A", "Guadeloupe"], ["9B", "Martinique"], ["9C", "Guyane"], ["9D", "La Réunion"], ["9F", "Mayotte"]];
+let projByDep = {}, insetBoxes = [];
+const projectFor = code => projByDep[code] || projection;
+const pathFor = code => d3.geoPath(projectFor(code));
+function project(code, lon, lat) {
+  if (isDom(code) && !projByDep[code]) return null;   // ex. Saint-Pierre-et-Miquelon : pas d'encart
+  const p = projectFor(code)([lon, lat]);
+  if (!p) return null;
+  const box = insetBoxes.find(b => b.code === code);
+  if (box && (p[0] < box.x0 - 2 || p[0] > box.x1 + 2 || p[1] < box.y0 - 2 || p[1] > box.y1 + 2)) return null;
+  return p;
+}
+
+function buildMap() {
+  const rect = $("mapwrap").getBoundingClientRect();
+  if (!rect.width || !rect.height) return false;
+  W = rect.width; H = rect.height;
+  svg.attr("viewBox", `0 0 ${W} ${H}`);
+  const feats = window.FRANCE_DEPS.features;
+  const metro = { type: "FeatureCollection", features: feats.filter(f => !isDom(f.properties.code)) };
+  const narrow = W < 560;
+  const top = narrow ? 16 : 56, bottom = 16;
+  // Encarts : colonne à gauche (écran large) ou rangée en bas (écran étroit)
+  const n = OUTREMER.length, gap = 8;
+  let colW = 0, rowH = 0;
+  insetBoxes = OUTREMER.map(([code, name], i) => {
+    if (narrow) {
+      rowH = Math.min(84, H * 0.16);
+      const w = (W - 24 - gap * (n - 1)) / n;
+      const x0 = 12 + i * (w + gap), y0 = H - rowH - (isMobile() ? 72 : 12);   // au-dessus du bouton « Voir la liste »
+      return { code, name, x0, y0, x1: x0 + w, y1: y0 + rowH - 16 };
+    }
+    colW = Math.min(118, W * 0.14);
+    const h = (H - top - bottom - gap * (n - 1)) / n;
+    const x0 = 14, y0 = top + i * (h + gap);
+    return { code, name, x0, y0, x1: x0 + colW, y1: y0 + h - 16 };
+  });
+  const mx0 = narrow ? 12 : colW + 34, my1 = narrow ? H - rowH - (isMobile() ? 84 : 24) : H - bottom;
+  baseR = Math.max(1.3, Math.min(2.4, Math.min(W, H) / 300));   // points plus fins sur petit écran
+  projection = d3.geoConicConformal().parallels([44, 49]).rotate([-3, 0]).fitExtent([[mx0, top], [W - 64, my1]], metro);
+  projByDep = {};
+  for (const b of insetBoxes) {
+    const f = feats.find(x => x.properties.code === b.code);
+    if (f) projByDep[b.code] = d3.geoMercator().fitExtent([[b.x0 + 6, b.y0 + 6], [b.x1 - 6, b.y1 - 6]], f);
+  }
+  path = d3.geoPath(projection);
+
+  gDeps.selectAll("path").data(feats, f => f.properties.code).join("path")
+    .attr("class", "dep").attr("d", f => pathFor(f.properties.code)(f))
+    .on("mousemove", (ev, f) => showDepTip(ev, f)).on("mouseleave", hideTip)
+    .on("click", (ev, f) => { ev.stopPropagation(); selectDep(f.properties.code); });
+  gFrame.attr("d", insetBoxes.map(b => `M${b.x0},${b.y0}H${b.x1}V${b.y1}H${b.x0}Z`).join(""));
+  gLabels.selectAll("text").data(feats.filter(f => !isDom(f.properties.code)), f => f.properties.code).join("text")
+    .attr("class", "deplabel").attr("text-anchor", "middle")
+    .attr("x", f => path.centroid(f)[0]).attr("y", f => path.centroid(f)[1]).text(f => DEPS[f.properties.code] || "");
+  gInsetLabels.selectAll("text").data(insetBoxes, b => b.code).join("text")
+    .attr("class", "inset-label").attr("x", b => (b.x0 + b.x1) / 2).attr("y", b => b.y1 + 12).attr("text-anchor", "middle").text(b => b.name);
+  const cities = CITIES.map(([name, lat, lon]) => {
+    const code = lat < 30 ? (lon < -60 && lat > 15 ? "9A" : lon < -60 ? "9B" : lon < -40 ? "9C" : lon > 50 ? "9D" : "9F") : null;
+    return { name, p: code ? project(code, lon, lat) : projection([lon, lat]) };
+  }).filter(c => c.p);
+  const cg = gCities.selectAll("g").data(cities, c => c.name).join(enter => { const g = enter.append("g").attr("class", "city"); g.append("circle"); g.append("text"); return g; });
+  cg.attr("transform", c => `translate(${c.p[0]},${c.p[1]})`);
+  for (const e of EHPAD) { const p = isDom(e.d) || e.d === "9E" ? project(e.d, e.lo, e.la) : projection([e.lo, e.la]); e.px = p ? p[0] : null; e.py = p ? p[1] : null; }
+  return true;
+}
+
+function renderPoints() {
+  if (!projection) return;
+  const data = shown.filter(e => e.px != null);
+  gPts.selectAll("circle").data(data, e => e.id).join("circle")
+    .attr("class", "pt").attr("cx", e => e.px).attr("cy", e => e.py).style("fill", colorOf)
+    .on("mousemove", (ev, e) => showPtTip(ev, e)).on("mouseleave", hideTip)
+    .on("click", (ev, e) => { ev.stopPropagation(); openDetail(e.id, { fromMap: true }); });
+  markSelected();
+  applyZoomStyles();
+}
+
+function applyZoomStyles() {
+  const r = baseR * Math.pow(k, 0.55) / k;
+  gPts.style("--r", `${r}px`);
+  gLabels.selectAll("text").style("font-size", `${11 / k}px`).style("stroke-width", `${3 / k}px`)
+    .attr("display", k >= 2.2 && k < 9 ? null : "none");
+  gCities.selectAll("text").attr("x", 5 / k).attr("y", 4 / k).style("font-size", `${12 / k}px`).style("stroke-width", `${3 / k}px`).text(c => c.name);
+  gCities.selectAll("circle").attr("r", 2.2 / k);
+  gCities.attr("display", k >= 1.6 ? null : "none");
+}
+
+const zoom = d3.zoom().scaleExtent([1, 80]).on("zoom", ev => {
+  k = ev.transform.k; gRoot.attr("transform", ev.transform); applyZoomStyles(); hideTip();
+  $("hint").hidden = k > 1.2;
+});
+svg.call(zoom).on("dblclick.zoom", null);
+svg.on("click", () => { /* clic dans le vide : rien */ });
+
+function zoomToBox([[x0, y0], [x1, y1]], maxK = 40) {
+  const s = Math.min(maxK, 0.85 / Math.max((x1 - x0) / W, (y1 - y0) / H));
+  const t = d3.zoomIdentity.translate(W / 2, H / 2).scale(s).translate(-(x0 + x1) / 2, -(y0 + y1) / 2);
+  svg.transition().duration(650).call(zoom.transform, t);
+}
+function resetZoom() { if (projection) svg.transition().duration(500).call(zoom.transform, d3.zoomIdentity); }
+function zoomToPoint(e) {
+  if (!e || e.px == null) return;
+  const s = Math.max(k, 18);
+  svg.transition().duration(650).call(zoom.transform, d3.zoomIdentity.translate(W / 2, H / 2).scale(s).translate(-e.px, -e.py));
+}
+function fitToResults() {
+  const pts = shown.filter(e => e.px != null);
+  if (!pts.length || pts.length === EHPAD.length) { resetZoom(); return; }
+  if (state.dep) { const f = window.FRANCE_DEPS.features.find(x => x.properties.code === state.dep); if (f) { zoomToBox(pathFor(state.dep).bounds(f)); return; } }
+  const xs = d3.extent(pts, e => e.px), ys = d3.extent(pts, e => e.py);
+  const padBox = 12;
+  zoomToBox([[xs[0] - padBox, ys[0] - padBox], [xs[1] + padBox, ys[1] + padBox]], 30);
+}
+$("zoom-in").addEventListener("click", () => svg.transition().duration(250).call(zoom.scaleBy, 1.8));
+$("zoom-out").addEventListener("click", () => svg.transition().duration(250).call(zoom.scaleBy, 1 / 1.8));
+$("zoom-reset").addEventListener("click", () => { if (state.dep) { state.dep = ""; $("dep").value = ""; apply(); } resetZoom(); });
+
+function selectDep(code) {
+  if (state.dep === code) { zoomToBox(pathFor(code).bounds(window.FRANCE_DEPS.features.find(x => x.properties.code === code))); return; }
+  state.dep = code; $("dep").value = code;
+  if (!$("detail").hidden) closeDetail();
+  apply({ fit: true });
+}
+function updateDepHighlight() { gDeps.selectAll("path").classed("active", f => f.properties.code === state.dep); }
+function markSelected() { gPts.selectAll("circle").classed("sel", e => e.id === state.selected).filter(e => e.id === state.selected).raise(); }
+function highlightPoint(id) { gPts.selectAll("circle").classed("hl", e => e.id === id).filter(e => e.id === id).raise(); }
+
+function placeTip(ev, html) {
+  tooltip.innerHTML = html; tooltip.style.opacity = 1;
+  const box = $("mapwrap").getBoundingClientRect(), tw = tooltip.offsetWidth, th = tooltip.offsetHeight;
+  let x = ev.clientX - box.left + 14, y = ev.clientY - box.top + 14;
+  if (x + tw > box.width - 8) x = ev.clientX - box.left - tw - 14;
+  if (y + th > box.height - 8) y = ev.clientY - box.top - th - 14;
+  tooltip.style.left = x + "px"; tooltip.style.top = y + "px";
+}
+function hideTip() { tooltip.style.opacity = 0; }
+function showPtTip(ev, e) {
+  placeTip(ev, `<b>${esc(e.nom)}</b>${esc(e.ville)}<br>${e.mois ? `≈ ${eur(e.mois)} /mois` : "Prix non communiqué"}${e.q ? ` · note ${e.q}` : ""}${e.st ? ` · ${STATUTS[e.st]}` : ""}
+    <div class="note" style="margin-top:4px">Cliquez pour ouvrir la fiche</div>`);
+}
+function showDepTip(ev, f) {
+  const code = f.properties.code, list = shown.filter(e => e.d === code), prices = list.map(e => e.mois).filter(Boolean);
+  placeTip(ev, `<b>${esc(depLabel(code))}</b>${nf(list.length)} EHPAD${list.length > 1 ? " affichés" : " affiché"}${prices.length ? `<br>prix médian ≈ ${eur(d3.median(prices))} /mois` : ""}
+    <div class="note" style="margin-top:4px">Cliquez pour zoomer sur le département</div>`);
+}
+
+// ---------- Contrôles ----------
+let qTimer;
+$("q").addEventListener("input", () => {
+  $("q-clear").hidden = !$("q").value;
+  clearTimeout(qTimer);
+  qTimer = setTimeout(() => { state.q = $("q").value.trim(); apply({ fit: !!state.q }); }, 220);
+});
+$("q-clear").addEventListener("click", () => { $("q").value = ""; $("q-clear").hidden = true; state.q = ""; apply(); $("q").focus(); });
+$("dep").addEventListener("change", () => { state.dep = $("dep").value; apply({ fit: true }); });
+// Budget : minimum et maximum en €/mois (appliqué après une courte pause de saisie)
+let priceTimer;
+function readBudget() {
+  const min = Math.max(0, Math.round(+$("pmin").value || 0)), max = Math.max(0, Math.round(+$("pmax").value || 0));
+  const invalid = min && max && min > max;
+  $("price-error").hidden = !invalid;
+  $("pmin").setAttribute("aria-invalid", !!invalid); $("pmax").setAttribute("aria-invalid", !!invalid);
+  if (invalid) return;
+  if (min === state.pmin && max === state.pmax) return;
+  state.pmin = min; state.pmax = max; apply();
+}
+for (const id of ["pmin", "pmax"]) {
+  $(id).addEventListener("input", () => { clearTimeout(priceTimer); priceTimer = setTimeout(readBudget, 450); });
+  $(id).addEventListener("change", () => { clearTimeout(priceTimer); readBudget(); });
+}
+// Repères : prix le plus bas et le plus haut parmi les EHPAD, arrondis à la centaine
+{
+  const prices = EHPAD.map(e => e.mois).filter(Boolean);
+  $("pmin").placeholder = nf(Math.floor(Math.min(...prices) / 100) * 100);
+  $("pmax").placeholder = nf(Math.ceil(Math.max(...prices) / 100) * 100);
+}
+$("sort").addEventListener("change", () => { state.sort = $("sort").value; shown.sort(SORTS[state.sort]); state.limit = 40; renderList(); $("scroll").scrollTop = 0; });
+$("more-toggle").addEventListener("click", () => {
+  const open = $("more").classList.toggle("open");
+  $("more-toggle").setAttribute("aria-expanded", open);
+  $("more-toggle").querySelector("svg").style.transform = open ? "rotate(180deg)" : "";
+});
+document.querySelectorAll(".seg[data-filter]").forEach(seg => seg.addEventListener("click", ev => {
+  const b = ev.target.closest(".toggle"); if (!b) return;
+  const name = seg.dataset.filter, v = b.dataset.value;
+  if (name === "statut") { state.statut.has(v) ? state.statut.delete(v) : state.statut.add(v); syncSeg("statut", [...state.statut]); apply(); }
+  else if (name === "qual") { state.qual = v; syncSeg("qual", [v]); apply(); }
+  else if (name === "color") { state.color = v; syncSeg("color", [v]); gPts.selectAll("circle").style("fill", colorOf); renderLegend(); }
+}));
+$("needs").addEventListener("change", ev => { const i = ev.target; if (i.type !== "checkbox") return; i.checked ? state.needs.add(i.value) : state.needs.delete(i.value); apply(); });
+
+// ---------- Mobile : bascule liste / carte ----------
+const isMobile = () => window.matchMedia("(max-width: 860px)").matches;
+function setView(v) {
+  document.body.dataset.view = v;
+  $("view-switch").querySelector("span").textContent = v === "map" ? "Voir la liste" : "Voir la carte";
+  if (v === "map") requestAnimationFrame(() => { if (!projection || !W) { buildMap(); renderPoints(); } });
+}
+$("view-switch").addEventListener("click", () => setView(document.body.dataset.view === "map" ? "list" : "map"));
+
+// ---------- Démarrage ----------
+let resizeTimer;
+new ResizeObserver(() => { clearTimeout(resizeTimer); resizeTimer = setTimeout(() => {
+  if (buildMap()) { svg.call(zoom.transform, d3.zoomIdentity); renderPoints(); updateDepHighlight(); if (state.dep || state.q) fitToResults(); }
+}, 120); }).observe($("mapwrap"));
+buildMap();
+apply();
 </script>
 </body>
 </html>

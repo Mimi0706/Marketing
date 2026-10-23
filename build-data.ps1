@@ -1,4 +1,4 @@
-# Génère ehpad.js (liste des EHPAD géolocalisés) à partir de l'extraction FINESS de data.gouv.fr
+﻿# Génère ehpad.js (liste des EHPAD géolocalisés) à partir de l'extraction FINESS de data.gouv.fr
 # Usage : powershell -ExecutionPolicy Bypass -File build-data.ps1
 # (les fichiers sources sont téléchargés automatiquement ; on peut aussi passer des fichiers déjà téléchargés)
 param([string]$Csv = "", [string]$EquipCsv = "", [string]$EjCsv = "", [string]$HasXlsx = "")
@@ -216,9 +216,40 @@ foreach ($r in ($gmpRows | Sort-Object { [int]$_.annee }, { $_.ndeg_dep -eq '69'
         $gmpDep[$c] = @([Math]::Round([double]$r.gmp_moyen_departemental), [int]$r.annee)
     }
 }
-$lastGmp = ($gmpRows | Measure-Object { [int]$_.annee } -Maximum).Maximum
+$lastGmp = ($gmpRows | ForEach-Object { [int]$_.annee } | Measure-Object -Maximum).Maximum
 $gmpVals = @($gmpRows | Where-Object { [int]$_.annee -eq $lastGmp -and $_.gmp_moyen_departemental } | ForEach-Object { [double]$_.gmp_moyen_departemental })
 $gmpMoyen = [Math]::Round(($gmpVals | Measure-Object -Average).Average)
+
+# Indicateurs de l'annuaire officiel (personnel, médecin, chambres...), collectés par collect-indicateurs.ps1
+$indic = @{}
+$indicFile = Join-Path $here 'indicateurs.json'
+if (Test-Path $indicFile) {
+    $json = [IO.File]::ReadAllText($indicFile, [Text.Encoding]::UTF8) | ConvertFrom-Json
+    foreach ($p in $json.PSObject.Properties) { $indic[$p.Name] = $p.Value }
+    Write-Host "$($indic.Count) EHPAD avec indicateurs de l'annuaire officiel"
+} else {
+    Write-Host "indicateurs.json absent : lancer collect-indicateurs.ps1 pour ajouter les indicateurs de personnel"
+}
+
+# Population au 1er janvier (INSEE, API Melodi) : 75 ans et plus et population totale par département,
+# pour rapporter l'offre à la population concernée (agrégation au département avant jointure).
+Write-Host "Téléchargement des populations départementales (INSEE)..."
+$popYear = (Get-Date).Year - 1
+$pop = @{}
+$url = "https://api.insee.fr/melodi/data/DS_ESTIMATION_POPULATION?GEO=DEP&TIME_PERIOD=$popYear&SEX=_T&EP_MEASURE=POP_JAN_1ST" +
+    "&AGE=_T&AGE=Y75T79&AGE=Y80T84&AGE=Y85T89&AGE=Y90T94&AGE=Y_GE95&maxResult=1000"
+while ($url) {
+    $resp = Invoke-WebRequest $url -UseBasicParsing -TimeoutSec 120
+    $page = [Text.Encoding]::UTF8.GetString($resp.RawContentStream.ToArray()) | ConvertFrom-Json
+    foreach ($o in $page.observations) {
+        $code = ($o.dimensions.GEO -split '-')[-1]
+        if ($depFiness[$code]) { $code = $depFiness[$code] }
+        if (-not $pop[$code]) { $pop[$code] = @{ tot = 0; p75 = 0 } }
+        $v = [double]$o.measures.OBS_VALUE_NIVEAU.value
+        if ($o.dimensions.AGE -eq '_T') { $pop[$code].tot = $v } else { $pop[$code].p75 += $v }
+    }
+    $url = if ($page.paging.isLast -eq $false -and $page.paging.next) { $page.paging.next } else { $null }
+}
 
 function Clean([string]$s) { ($s -replace '\s+', ' ').Trim() }
 $ci = [System.Globalization.CultureInfo]::InvariantCulture
@@ -268,12 +299,18 @@ foreach ($id in $ehpad.Keys) {
         if ($q.ci) { $rec.qc = $q.ci }
         $rec.qt = $q.th
     }
+    # Annuaire officiel : i = indicateurs bruts (voir collect-indicateurs.ps1 pour le sens des champs)
+    $ind = $indic[$id]
+    if ($ind) { $rec.i = $ind }
     $out.Add(($rec | ConvertTo-Json -Compress))
 }
 
 $gmpJs = ($gmpDep.GetEnumerator() | Sort-Object Name | ForEach-Object { "`"$($_.Name)`":[$($_.Value[0]),$($_.Value[1])]" }) -join ','
 $js = "window.EHPAD_DATE='$dataDate';`n" +
     "// GMP moyen des EHPAD par département [valeur, année] et moyenne des départements pour $lastGmp`n" +
-    "window.GMP_DEP={$gmpJs};`nwindow.GMP_MOYEN=[$gmpMoyen,$lastGmp];`nwindow.EHPAD=[`n" + ($out -join ",`n") + "`n];`n"
+    "window.GMP_DEP={$gmpJs};`nwindow.GMP_MOYEN=[$gmpMoyen,$lastGmp];`n" +
+    "// Population INSEE au 1er janvier $popYear par département : [totale, 75 ans et plus]`n" +
+    "window.POP_DEP={" + (($pop.GetEnumerator() | Sort-Object Name | ForEach-Object { "`"$($_.Name)`":[$($_.Value.tot),$($_.Value.p75)]" }) -join ',') + "};`n" +
+    "window.POP_YEAR=$popYear;`nwindow.EHPAD=[`n" + ($out -join ",`n") + "`n];`n"
 [System.IO.File]::WriteAllText((Join-Path $here 'ehpad.js'), $js, (New-Object System.Text.UTF8Encoding $false))
 Write-Host "$($out.Count) EHPAD exportés ($missing sans coordonnées, $($prix.Count) avec prix, $($has.Count) évalués par la HAS) - données du $dataDate"
